@@ -1,0 +1,1 @@
+WELCOME TO "QueueUp: PHINMA-UPang's Registrar Kiosk-Queueing System"!

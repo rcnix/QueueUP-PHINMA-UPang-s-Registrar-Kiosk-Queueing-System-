@@ -1,0 +1,5 @@
+customtkinter
+tkcalendar
+psycopg2-binary
+python-dotenv
+pywin32; sys_platform == "win32"
