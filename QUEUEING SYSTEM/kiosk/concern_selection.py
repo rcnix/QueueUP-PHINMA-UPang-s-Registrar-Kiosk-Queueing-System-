@@ -13,8 +13,8 @@ class ConcernSelectionMixin:
 			for counter in self.concern_counters.values()
 		):
 			messagebox.showwarning(
-				"No services at this counter",
-				"Choose a counter with an active concern.",
+				"No Service Available",
+				"Choose a counter with an active concern!",
 				parent=self,
 			)
 			return

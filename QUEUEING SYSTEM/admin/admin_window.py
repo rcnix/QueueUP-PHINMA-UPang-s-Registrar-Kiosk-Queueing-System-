@@ -43,8 +43,8 @@ class MainFrame(ctk.CTkFrame):
 		).grid(row=0, column=0, columnspan=2, sticky="ew")
 		ctk.CTkLabel(
 			header,
-			text="LIVE COUNTER DISPLAY",
-			font=ctk.CTkFont(family=FONT_FAMILY, size=17, weight="bold"),
+			text="Live Counter Display for QueueUP",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
 			text_color=GREEN,
 			anchor="center",
 		).grid(row=1, column=0, columnspan=2, pady=(2, 0), sticky="ew")

@@ -11,10 +11,10 @@ class TicketWorkflowMixin:
 		concern_id = self.concern_ids.get(self.concern_choice.get())
 		recipient_name = self.recipient_name.get().strip()
 		if not recipient_name:
-			messagebox.showwarning("Recipient required", "Enter the recipient name first.", parent=self)
+			messagebox.showwarning("Recipient Required", "Enter the recipient name first!", parent=self)
 			return
 		if concern_id is None:
-			messagebox.showwarning("No service", "There is no active concern for this counter.", parent=self)
+			messagebox.showwarning("No Service Available", "There is no active concern for this counter!", parent=self)
 			return
 		try:
 			ticket_number, counter_number, concern_name = issue_ticket(concern_id, recipient_name)
