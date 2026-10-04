@@ -4,7 +4,7 @@ import tkinter.messagebox as messagebox
 import customtkinter as ctk
 import psycopg2
 
-from assets import set_window_icon
+from assets import center_window, set_window_icon
 from database.queries import get_queue_snapshot, serve_next
 
 
@@ -148,6 +148,7 @@ class CounterWindow(ctk.CTk):
 		self.configure(fg_color=PALE_GREEN)
 		self.geometry("700x600")
 		self.minsize(540, 480)
+		center_window(self)
 		self.grid_columnconfigure(0, weight=1)
 		self.grid_rowconfigure(3, weight=1)
 		self.status = ctk.StringVar(value="Connecting to the queue...")

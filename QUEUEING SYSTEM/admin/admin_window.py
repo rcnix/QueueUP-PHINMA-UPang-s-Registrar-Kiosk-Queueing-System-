@@ -6,7 +6,7 @@ import psycopg2
 
 from admin.dashboard import AdminDashboard
 from admin.styles import FONT_FAMILY, GREEN, INK, PALE_GREEN
-from assets import set_window_icon
+from assets import center_window, set_window_icon
 from database.queries import ensure_schema, get_queue_snapshot
 
 
@@ -130,6 +130,7 @@ def main(prepare_schema: bool = True) -> None:
 	root.title("QueueUP Admin")
 	root.geometry("1200x800")
 	root.minsize(850, 560)
+	center_window(root)
 	set_window_icon(root)
 	if prepare_schema:
 		try:

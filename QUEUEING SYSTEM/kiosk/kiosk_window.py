@@ -6,7 +6,7 @@ import customtkinter as ctk
 if __package__ in (None, ""):
 	sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from assets import set_window_icon
+from assets import center_window, set_window_icon
 from kiosk.concern_selection import ConcernSelectionMixin
 from kiosk.counter_selection import CounterSelectionMixin
 from kiosk.ticket import TicketWorkflowMixin
@@ -337,6 +337,7 @@ def main() -> None:
 	root.title("QueueUP - Get a Ticket")
 	root.geometry("980x900")
 	root.minsize(800, 740)
+	center_window(root)
 	set_window_icon(root)
 	KioskWindow(root).pack(fill="both", expand=True)
 	root.mainloop()

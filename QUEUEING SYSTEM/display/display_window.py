@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import psycopg2
 
-from assets import set_window_icon
+from assets import center_window, set_window_icon
 from database.queries import get_queue_snapshot
 
 
@@ -14,6 +14,7 @@ class DisplayWindow(ctk.CTk):
 		set_window_icon(self)
 		self.geometry("1280x720")
 		self.minsize(800, 480)
+		center_window(self)
 		self.grid_columnconfigure(0, weight=1)
 		self.grid_rowconfigure(1, weight=1)
 		self.status = ctk.StringVar(value="Connecting to queue service...")

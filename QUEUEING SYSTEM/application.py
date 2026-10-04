@@ -1,6 +1,6 @@
 import customtkinter as ctk
 
-from assets import set_window_icon
+from assets import center_window, set_window_icon
 
 
 class QueueUPApp(ctk.CTk):
@@ -9,6 +9,7 @@ class QueueUPApp(ctk.CTk):
 		self.title("QueueUP: PHINMA-UPang's Registrar Queueing System")
 		self.geometry("1280x820")
 		self.minsize(980, 640)
+		center_window(self)
 		set_window_icon(self)
 
 		tabs = ctk.CTkTabview(self)
