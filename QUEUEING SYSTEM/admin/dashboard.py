@@ -33,15 +33,13 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		self._waiting_by_counter: dict[int, list[str]] = {}
 		self._queue_hover_windows = {}
 		self._queue_hover_jobs = {}
+		self._tab_refresh_job = None
 		self._initialize_calendar()
 		self._transaction_filter_window = None
 		self.faq_editor_id: int | None = None
 		self.pack(fill="both", expand=True)
 		self._build_ui()
 		self._refresh_live_queues()
-		self._refresh_transactions()
-		self._refresh_concerns()
-		self._load_calendar()
 
 	def _build_ui(self) -> None:
 		header = ctk.CTkFrame(self, fg_color="transparent")
@@ -53,25 +51,25 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 			font=ctk.CTkFont(family=FONT_FAMILY, size=22, weight="bold"),
 			text_color=INK,
 		).grid(row=0, column=0, sticky="w")
-		self.tabs = ctk.CTkTabview(self)
+		self.tabs = ctk.CTkTabview(self, command=self._on_admin_tab_changed)
 		self.tabs.pack(fill="both", expand=True, padx=18, pady=10)
 		self.tabs.add("Live Queues")
 		self.tabs.add("Transactions")
 		self.tabs.add("Concerns")
-		self.tabs.add("FAQ Editor")
 		self.tabs.add("Calendar")
+		self.tabs.add("FAQ Editor")
 		self._build_live_tab(self.tabs.tab("Live Queues"))
 		self._build_transactions_tab(self.tabs.tab("Transactions"))
 		self._build_concerns_tab(self.tabs.tab("Concerns"))
-		self._build_faq_editor_tab(self.tabs.tab("FAQ Editor"))
 		self._build_calendar_tab(self.tabs.tab("Calendar"))
+		self._build_faq_editor_tab(self.tabs.tab("FAQ Editor"))
 		ctk.CTkLabel(self, textvariable=self.status, anchor="center").pack(
 			fill="x", padx=22, pady=(0, 10)
 		)
 
 	def _build_live_tab(self, tab) -> None:
 		for row in range(2):
-			tab.grid_rowconfigure(row, weight=1)
+			tab.grid_rowconfigure(row, weight=1, uniform="counter-row")
 		for column in range(3):
 			tab.grid_columnconfigure(column, weight=1)
 		self.latest_labels = []
@@ -82,15 +80,17 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		for index in range(self.COUNTER_COUNT):
 			panel = ctk.CTkFrame(
 				tab,
+				height=300,
 				fg_color="#F7FBF6",
 				border_width=1,
 				border_color="#BCD5BE",
 				corner_radius=8,
 			)
+			panel.grid_propagate(False)
 			panel.grid(
 				row=index // 3,
 				column=index % 3,
-				padx=8,
+				padx=(2, 8) if index % 3 == 0 else 8,
 				pady=8,
 				sticky="nsew",
 			)
@@ -161,6 +161,7 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 			empty_label = ctk.CTkLabel(
 				panel,
 				text="No more waiting tickets",
+				height=84,
 				font=ctk.CTkFont(family=FONT_FAMILY, size=12),
 				text_color="#52765A",
 				fg_color="#EDF6ED",
@@ -291,18 +292,25 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 			button_hover_color=INK,
 		).pack(side="left", padx=(0, 8))
 		self.all_transactions = tk.BooleanVar(value=False)
-		ctk.CTkSwitch(
+		ctk.CTkRadioButton(
 			controls,
 			text="All history",
 			variable=self.all_transactions,
-			command=self._refresh_transactions,
+			value=True,
+			command=self._on_history_mode_changed,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+			fg_color=GREEN,
+			hover_color=GREEN_HOVER,
 		).pack(side="left", padx=8)
-		ctk.CTkLabel(
+		ctk.CTkRadioButton(
 			controls,
 			text="History date",
-			font=ctk.CTkFont(family=FONT_FAMILY, size=11),
-			text_color=INK,
+			variable=self.all_transactions,
+			value=False,
+			command=self._on_history_mode_changed,
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+			fg_color=GREEN,
+			hover_color=GREEN_HOVER,
 		).pack(side="left", padx=(8, 4))
 		self.transaction_history_date = DateEntry(
 			controls,
@@ -317,14 +325,15 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		self.transaction_history_date.bind(
 			"<FocusOut>", self._on_transaction_history_date_selected, add="+"
 		)
-		ctk.CTkButton(
+		self.transaction_refresh_button = ctk.CTkButton(
 			controls,
 			text="Refresh Transactions",
 			command=self._refresh_transactions,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
 			fg_color=GREEN,
 			hover_color=GREEN_HOVER,
-		).pack(side="left")
+		)
+		self.transaction_refresh_button.pack(side="left")
 		ctk.CTkButton(
 			controls,
 			text="Filter",
@@ -391,16 +400,42 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 				justify="center",
 			).grid(row=0, column=column, padx=1, pady=(0, 2), sticky="ew")
 
+	def _on_history_mode_changed(self) -> None:
+		self.transaction_history_date.configure(
+			state="disabled" if self.all_transactions.get() else "normal"
+		)
+		self._refresh_transactions()
+
+	def _on_admin_tab_changed(self) -> None:
+		if self._tab_refresh_job is not None:
+			self.after_cancel(self._tab_refresh_job)
+		self._tab_refresh_job = self.after_idle(self._refresh_active_tab)
+
+	def _refresh_active_tab(self) -> None:
+		self._tab_refresh_job = None
+		selected_tab = self.tabs.get()
+		if selected_tab == "Transactions":
+			self._refresh_transactions()
+		elif selected_tab == "Concerns":
+			self._refresh_concerns()
+		elif selected_tab == "Calendar":
+			self._load_calendar()
+		elif selected_tab == "FAQ Editor":
+			self._refresh_faq_editor_targets()
+
 	def _open_transaction_filter(self) -> None:
 		if self._transaction_filter_window is not None:
 			if self._transaction_filter_window.winfo_exists():
-				self._close_transaction_filter()
+				self._transaction_filter_window.deiconify()
+				self._transaction_filter_window.lift()
+				self._transaction_filter_window.focus_force()
 				return
+			self._transaction_filter_window = None
 		window = ctk.CTkToplevel(self)
 		self._transaction_filter_window = window
 		window.title("Filter transactions")
-		window.geometry("500x560")
-		window.minsize(460, 520)
+		window.geometry("460x400")
+		window.minsize(420, 380)
 		window.transient(self.winfo_toplevel())
 		window.grid_columnconfigure(1, weight=1)
 		ctk.CTkLabel(
@@ -477,7 +512,6 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 				button_color=GREEN_HOVER,
 				button_hover_color=INK,
 			).grid(row=row, column=1, padx=(0, 20), pady=7, sticky="ew")
-		window.grid_rowconfigure(len(fields) + len(options) + 2, weight=1)
 		buttons = ctk.CTkFrame(window, fg_color="transparent")
 		buttons.grid(
 			row=len(fields) + len(options) + 3,
@@ -514,7 +548,8 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 
 	def _close_transaction_filter(self) -> None:
 		if self._transaction_filter_window is not None:
-			self._transaction_filter_window.destroy()
+			if self._transaction_filter_window.winfo_exists():
+				self._transaction_filter_window.destroy()
 			self._transaction_filter_window = None
 
 	def _reset_transaction_filters(self) -> None:
@@ -645,8 +680,10 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		controls = ctk.CTkFrame(tab, fg_color="transparent")
 		controls.grid(row=0, column=0, padx=12, pady=10, sticky="ew")
 		self.faq_scope = tk.StringVar(value="Counter")
+		self.faq_counter = tk.StringVar(value="COUNTER 1")
 		self.faq_target = tk.StringVar(value="COUNTER 1")
 		self.faq_target_ids: dict[str, int] = {}
+		self.faq_concerns_by_counter: dict[str, dict[str, int]] = {}
 		ctk.CTkOptionMenu(
 			controls,
 			variable=self.faq_scope,
@@ -658,6 +695,17 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 			button_color=GREEN_HOVER,
 			button_hover_color=INK,
 		).pack(side="left", padx=(0, 8))
+		self.faq_counter_menu = ctk.CTkOptionMenu(
+			controls,
+			variable=self.faq_counter,
+			values=[f"COUNTER {number}" for number in range(1, self.COUNTER_COUNT + 1)],
+			command=lambda _value: self._on_faq_counter_changed(),
+			width=150,
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+			fg_color=GREEN,
+			button_color=GREEN_HOVER,
+			button_hover_color=INK,
+		)
 		self.faq_target_menu = ctk.CTkOptionMenu(
 			controls,
 			variable=self.faq_target,
@@ -670,6 +718,7 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 			button_hover_color=INK,
 		)
 		self.faq_target_menu.pack(side="left")
+		self.faq_counter_menu.pack_forget()
 
 		ctk.CTkLabel(
 			tab,
@@ -721,8 +770,6 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		self.faq_editor_list = ctk.CTkScrollableFrame(tab, fg_color="transparent")
 		self.faq_editor_list.grid(row=6, column=0, padx=10, pady=(2, 10), sticky="nsew")
 		tab.grid_rowconfigure(6, weight=1)
-		self._refresh_faq_editor_targets()
-
 	def _on_faq_scope_changed(self) -> None:
 		self._clear_faq_editor_form()
 		self._refresh_faq_editor_targets()
@@ -731,21 +778,40 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		self._clear_faq_editor_form()
 		self._refresh_faq_editor_list()
 
+	def _on_faq_counter_changed(self) -> None:
+		self._clear_faq_editor_form()
+		self._refresh_faq_editor_targets()
+
 	def _refresh_faq_editor_targets(self) -> None:
 		if self.faq_scope.get() == "Counter":
+			self.faq_counter_menu.pack_forget()
 			self.faq_target_ids = {
 				f"COUNTER {number}": number
 				for number in range(1, self.COUNTER_COUNT + 1)
 			}
 		else:
 			try:
-				self.faq_target_ids = {
-					f"{name} ({prefix})": concern_id
-					for concern_id, name, prefix, _counter, _active in get_concerns(active_only=True)
-				}
+				concerns = get_concerns(active_only=True)
 			except psycopg2.Error as error:
 				self.status.set(f"Could not load FAQ concerns: {error}")
-				self.faq_target_ids = {}
+				concerns = []
+			self.faq_concerns_by_counter = {
+				f"COUNTER {number}": {
+					f"{name} ({prefix})": concern_id
+					for concern_id, name, prefix, concern_counter, _active in concerns
+					if concern_counter == number
+				}
+				for number in range(1, self.COUNTER_COUNT + 1)
+			}
+			counter_values = list(self.faq_concerns_by_counter)
+			self.faq_counter_menu.configure(values=counter_values)
+			if self.faq_counter.get() not in self.faq_concerns_by_counter:
+				self.faq_counter.set(counter_values[0])
+			if not self.faq_counter_menu.winfo_manager():
+				self.faq_counter_menu.pack(side="left", before=self.faq_target_menu, padx=(0, 8))
+			self.faq_target_ids = self.faq_concerns_by_counter.get(
+				self.faq_counter.get(), {}
+			)
 		values = list(self.faq_target_ids) or ["No active concerns"]
 		self.faq_target_menu.configure(values=values)
 		current = self.faq_target.get()

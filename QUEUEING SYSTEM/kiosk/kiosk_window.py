@@ -73,7 +73,12 @@ class KioskWindow(
 		self.page_area.grid_columnconfigure(0, weight=1)
 		self.page_area.grid_rowconfigure(0, weight=1)
 		self.pages = {
-			name: ctk.CTkFrame(self.page_area, fg_color="transparent")
+			name: ctk.CTkScrollableFrame(
+				self.page_area,
+				fg_color="transparent",
+				scrollbar_button_color=GREEN,
+				scrollbar_button_hover_color=GREEN_HOVER,
+			)
 			for name in ("home", "counter", "concern", "ticket")
 		}
 		for page in self.pages.values():
@@ -182,7 +187,7 @@ class KioskWindow(
 	def _build_ticket_page(self) -> None:
 		page = self.pages["ticket"]
 		page.grid_columnconfigure(0, weight=1)
-		self._page_heading(page, "Queue ticket issued", "Keep your ticket number and proceed to the assigned counter.")
+		self._page_heading(page, "Thank you!", "Keep your ticket number and proceed to the assigned counter.")
 		self.ticket_label = ctk.CTkLabel(
 			page,
 			text="--",
