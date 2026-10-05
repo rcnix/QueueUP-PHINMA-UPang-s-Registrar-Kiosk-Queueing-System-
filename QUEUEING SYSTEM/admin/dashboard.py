@@ -10,9 +10,12 @@ from tkcalendar import DateEntry
 
 from admin.calendar import AdminCalendarMixin
 from admin.concerns import ConcernManagementMixin
+from admin.counters import CounterCreationMixin
 from admin.styles import FONT_FAMILY, GREEN, GREEN_HOVER, INK
 from database.queries import (
+	delete_all_application_data,
 	get_concerns,
+	get_counters,
 	get_faqs,
 	get_latest_tickets,
 	get_queue_snapshot,
@@ -22,12 +25,14 @@ from database.queries import (
 )
 
 
-class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
+class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 	COUNTER_COUNT = 6
 	TABLE_WEIGHTS = (1.0, 0.65, 0.8, 1.8, 1.25, 1.25, 1.25)
 
-	def __init__(self, root):
+	def __init__(self, root, on_logout=None, on_delete_account=None):
 		super().__init__(root, corner_radius=0)
+		self.on_logout = on_logout
+		self.on_delete_account = on_delete_account
 		self.status = tk.StringVar(value="Administrative view connected.")
 		self._refresh_job = None
 		self._waiting_by_counter: dict[int, list[str]] = {}
@@ -37,6 +42,9 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		self._initialize_calendar()
 		self._transaction_filter_window = None
 		self.faq_editor_id: int | None = None
+		self._settings_window = None
+		self.counter_number_by_label: dict[str, int] = {}
+		self._counter_filter_menus = []
 		self.pack(fill="both", expand=True)
 		self._build_ui()
 		self._refresh_live_queues()
@@ -45,12 +53,48 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		header = ctk.CTkFrame(self, fg_color="transparent")
 		header.pack(fill="x", padx=22, pady=(14, 4))
 		header.grid_columnconfigure(0, weight=1)
+		actions = ctk.CTkFrame(header, fg_color="transparent")
+		actions.grid(row=0, column=1, sticky="e")
 		ctk.CTkLabel(
 			header,
 			text="QueueUP Admin",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=22, weight="bold"),
 			text_color=INK,
 		).grid(row=0, column=0, sticky="w")
+		self.section_menu = tk.Menu(header, tearoff=False)
+		for section in (
+			"Live Queues",
+			"Transactions",
+			"Concerns",
+			"Calendar",
+			"FAQ Editor",
+			"Counter Creation",
+		):
+			self.section_menu.add_command(
+				label=section,
+				command=lambda name=section: self._select_section(name),
+			)
+		self.section_button = ctk.CTkButton(
+			actions,
+			text="\u2630 Sections",
+			width=112,
+			command=self._show_section_menu,
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+			fg_color="#DDEBDD",
+			hover_color="#C6DEC7",
+			text_color=INK,
+		)
+		self.section_button.pack(side="left", padx=(0, 8))
+		ctk.CTkButton(
+			actions,
+			text="\u2699 Settings",
+			width=112,
+			command=self._show_settings,
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+			fg_color="#DDEBDD",
+			hover_color="#C6DEC7",
+			text_color=INK,
+		).pack(side="left")
 		self.tabs = ctk.CTkTabview(self, command=self._on_admin_tab_changed)
 		self.tabs.pack(fill="both", expand=True, padx=18, pady=10)
 		self.tabs.add("Live Queues")
@@ -58,28 +102,175 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		self.tabs.add("Concerns")
 		self.tabs.add("Calendar")
 		self.tabs.add("FAQ Editor")
+		self.tabs.add("Counter Creation")
 		self._build_live_tab(self.tabs.tab("Live Queues"))
 		self._build_transactions_tab(self.tabs.tab("Transactions"))
 		self._build_concerns_tab(self.tabs.tab("Concerns"))
 		self._build_calendar_tab(self.tabs.tab("Calendar"))
 		self._build_faq_editor_tab(self.tabs.tab("FAQ Editor"))
+		self._build_counter_creation_tab(self.tabs.tab("Counter Creation"))
+		self.tabs._segmented_button.grid_remove()
 		ctk.CTkLabel(self, textvariable=self.status, anchor="center").pack(
 			fill="x", padx=22, pady=(0, 10)
 		)
 
+	def _show_section_menu(self) -> None:
+		try:
+			self.section_menu.tk_popup(
+				self.section_button.winfo_rootx(),
+				self.section_button.winfo_rooty() + self.section_button.winfo_height(),
+			)
+		finally:
+			self.section_menu.grab_release()
+
+	def _select_section(self, section: str) -> None:
+		self.tabs.set(section)
+		self._on_admin_tab_changed()
+
+	def _on_counters_changed(self) -> None:
+		self._refresh_counter_filter_menus()
+		self._render_live_counter_panels()
+		self._refresh_live_queues()
+		if hasattr(self, "concern_list"):
+			self._refresh_concerns()
+		if hasattr(self, "faq_target_menu"):
+			self._refresh_faq_editor_targets()
+
+	def _counter_filter_values(self) -> list[str]:
+		try:
+			counters = get_counters()
+		except psycopg2.Error as error:
+			self.status.set(f"Could not load counters: {error}")
+			counters = []
+		self.counter_number_by_label = {
+			f"COUNTER {number} - {name}": number
+			for number, name, _prefix, _username in counters
+		}
+		return ["ALL COUNTERS", *self.counter_number_by_label]
+
+	def _refresh_counter_filter_menus(self) -> None:
+		values = self._counter_filter_values()
+		for menu, variable in self._counter_filter_menus:
+			try:
+				menu.configure(values=values)
+				if variable.get() not in values:
+					variable.set("ALL COUNTERS")
+			except tk.TclError:
+				pass
+
+	def _counter_number_from_label(self, label: str) -> int | None:
+		if label == "ALL COUNTERS":
+			return None
+		return self.counter_number_by_label.get(label)
+
+	def _show_settings(self) -> None:
+		if self._settings_window is not None and self._settings_window.winfo_exists():
+			self._settings_window.deiconify()
+			self._settings_window.lift()
+			return
+		window = ctk.CTkToplevel(self)
+		self._settings_window = window
+		window.title("Admin settings")
+		window.geometry("310x250")
+		window.resizable(False, False)
+		window.transient(self.winfo_toplevel())
+		window.grid_columnconfigure(0, weight=1)
+		ctk.CTkLabel(
+			window,
+			text="ADMIN SETTINGS",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
+			text_color=INK,
+		).grid(row=0, column=0, padx=20, pady=(18, 10), sticky="w")
+		dark_mode = tk.BooleanVar(value=ctk.get_appearance_mode().lower() == "dark")
+		ctk.CTkSwitch(
+			window,
+			text="Dark mode",
+			variable=dark_mode,
+			command=lambda: ctk.set_appearance_mode(
+				"Dark" if dark_mode.get() else "Light"
+			),
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+		).grid(row=1, column=0, padx=20, pady=10, sticky="w")
+		ctk.CTkButton(
+			window,
+			text="Log Out",
+			command=lambda: self._logout(window),
+			fg_color=GREEN,
+			hover_color=GREEN_HOVER,
+		).grid(row=2, column=0, padx=20, pady=6, sticky="ew")
+		ctk.CTkButton(
+			window,
+			text="Delete Admin Account",
+			command=lambda: self._delete_admin_account(window),
+			fg_color="#A64C42",
+			hover_color="#873C34",
+		).grid(row=3, column=0, padx=20, pady=(6, 18), sticky="ew")
+
+	def _logout(self, settings_window) -> None:
+		settings_window.destroy()
+		if self.on_logout is not None:
+			self.on_logout()
+
+	def _delete_admin_account(self, settings_window) -> None:
+		if not messagebox.askyesno(
+			"Delete admin account and all data?",
+			"This permanently deletes the admin account, counter accounts, counters, "
+			"concerns, FAQs, tickets, and transaction history. This cannot be undone.\n\n"
+			"Continue?",
+			icon="warning",
+			parent=settings_window,
+		):
+			return
+		try:
+			delete_all_application_data()
+		except psycopg2.Error as error:
+			messagebox.showerror("Account deletion failed", str(error), parent=settings_window)
+			return
+		settings_window.destroy()
+		messagebox.showinfo(
+			"Admin account deleted",
+			"All QueueUP data was deleted. Create a new admin account to continue.",
+			parent=self,
+		)
+		if self.on_delete_account is not None:
+			self.on_delete_account()
+
 	def _build_live_tab(self, tab) -> None:
-		for row in range(2):
-			tab.grid_rowconfigure(row, weight=1, uniform="counter-row")
+		tab.grid_columnconfigure(0, weight=1)
+		tab.grid_rowconfigure(0, weight=1)
+		self.live_grid = ctk.CTkScrollableFrame(tab, fg_color="transparent")
+		self.live_grid.grid(row=0, column=0, sticky="nsew")
+		self._render_live_counter_panels()
+
+	def _render_live_counter_panels(self) -> None:
+		for child in self.live_grid.winfo_children():
+			child.destroy()
+		self.latest_labels = {}
+		self.serving_labels = {}
+		self.count_labels = {}
+		self.queue_views = {}
+		self.empty_queue_labels = {}
+		self.queue_panels = {}
+		try:
+			counters = get_counters()
+		except psycopg2.Error as error:
+			self.status.set(f"Could not load counters: {error}")
+			counters = []
+		if not counters:
+			ctk.CTkLabel(
+				self.live_grid,
+				text="No counters yet. Create one in Counter Creation.",
+				font=ctk.CTkFont(family=FONT_FAMILY, size=14),
+				text_color=INK,
+			).grid(row=0, column=0, columnspan=3, padx=20, pady=24)
+			return
 		for column in range(3):
-			tab.grid_columnconfigure(column, weight=1)
-		self.latest_labels = []
-		self.serving_labels = []
-		self.count_labels = []
-		self.queue_views = []
-		self.empty_queue_labels = []
-		for index in range(self.COUNTER_COUNT):
+			self.live_grid.grid_columnconfigure(column, weight=1, uniform="counter-column")
+		for index, (counter_number, counter_name, _prefix, _username) in enumerate(counters):
+			row, column = divmod(index, 3)
+			self.live_grid.grid_rowconfigure(row, weight=1, uniform="counter-row")
 			panel = ctk.CTkFrame(
-				tab,
+				self.live_grid,
 				height=300,
 				fg_color="#F7FBF6",
 				border_width=1,
@@ -88,20 +279,21 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 			)
 			panel.grid_propagate(False)
 			panel.grid(
-				row=index // 3,
-				column=index % 3,
-				padx=(2, 8) if index % 3 == 0 else 8,
+				row=row,
+				column=column,
+				padx=(2, 8) if column == 0 else 8,
 				pady=8,
 				sticky="nsew",
 			)
 			panel.grid_columnconfigure(0, weight=1)
 			panel.grid_rowconfigure(6, weight=1)
-			ctk.CTkLabel(
+			counter_title = ctk.CTkLabel(
 				panel,
-				text=f"COUNTER {index + 1}",
+				text=f"COUNTER {counter_number}  /  {counter_name}",
 				font=ctk.CTkFont(family=FONT_FAMILY, size=17, weight="bold"),
 				text_color=GREEN,
-			).grid(row=0, column=0, padx=12, pady=(10, 5))
+			)
+			counter_title.grid(row=0, column=0, padx=12, pady=(10, 5))
 			ctk.CTkLabel(
 				panel,
 				text="LATEST TICKET",
@@ -115,7 +307,7 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 				text_color=INK,
 			)
 			latest.grid(row=2, column=0, padx=10, pady=(0, 4))
-			self.latest_labels.append(latest)
+			self.latest_labels[counter_number] = latest
 			ctk.CTkLabel(
 				panel,
 				text="NOW SERVING",
@@ -129,7 +321,7 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 				text_color=INK,
 			)
 			serving.grid(row=4, column=0, padx=10, pady=(0, 4))
-			self.serving_labels.append(serving)
+			self.serving_labels[counter_number] = serving
 			count = ctk.CTkLabel(
 				panel,
 				text="Waiting: 0",
@@ -137,7 +329,7 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 				text_color=INK,
 			)
 			count.grid(row=5, column=0, padx=10, pady=3)
-			self.count_labels.append(count)
+			self.count_labels[counter_number] = count
 			queue_view = ctk.CTkTextbox(
 				panel,
 				height=84,
@@ -152,12 +344,12 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 			queue_view.configure(state="disabled")
 			for hover_target in (queue_view, queue_view._textbox):
 				hover_target.bind(
-					"<Enter>", lambda event, i=index: self._show_queue_hover(event, i)
+					"<Enter>", lambda event, number=counter_number: self._show_queue_hover(event, number)
 				)
 				hover_target.bind(
-					"<Leave>", lambda _event, i=index: self._schedule_queue_hover_close(i)
+					"<Leave>", lambda _event, number=counter_number: self._schedule_queue_hover_close(number)
 				)
-			self.queue_views.append(queue_view)
+			self.queue_views[counter_number] = queue_view
 			empty_label = ctk.CTkLabel(
 				panel,
 				text="No more waiting tickets",
@@ -169,24 +361,25 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 			)
 			empty_label.grid(row=6, column=0, padx=10, pady=(4, 10), sticky="nsew")
 			empty_label.grid_remove()
-			self.empty_queue_labels.append(empty_label)
+			self.empty_queue_labels[counter_number] = empty_label
+			self.queue_panels[counter_number] = panel
 
 	def _refresh_live_queues(self) -> None:
 		try:
 			snapshot = get_queue_snapshot()
 			latest_tickets = get_latest_tickets()
-			for counter_number, view in enumerate(self.queue_views, 1):
-				serving, waiting = snapshot[counter_number]
-				self.latest_labels[counter_number - 1].configure(
-					text=latest_tickets[counter_number] or "--"
+			for counter_number, view in self.queue_views.items():
+				serving, waiting = snapshot.get(counter_number, (None, []))
+				self.latest_labels[counter_number].configure(
+					text=latest_tickets.get(counter_number) or "--"
 				)
-				self.serving_labels[counter_number - 1].configure(text=serving or "--")
-				self.count_labels[counter_number - 1].configure(
+				self.serving_labels[counter_number].configure(text=serving or "--")
+				self.count_labels[counter_number].configure(
 					text=f"Waiting: {len(waiting)}"
 				)
 				self._waiting_by_counter[counter_number] = list(waiting)
 				if waiting:
-					self.empty_queue_labels[counter_number - 1].grid_remove()
+					self.empty_queue_labels[counter_number].grid_remove()
 					view.grid()
 					self._set_text(
 						view,
@@ -197,7 +390,7 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 					)
 				else:
 					view.grid_remove()
-					self.empty_queue_labels[counter_number - 1].grid()
+					self.empty_queue_labels[counter_number].grid()
 			self.status.set("Live queue status updated.")
 		except psycopg2.Error as error:
 			self.status.set(f"Could not refresh live queues: {error}")
@@ -209,21 +402,20 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 					pass
 			self._refresh_job = self.after(2000, self._refresh_live_queues)
 
-	def _show_queue_hover(self, event, index: int) -> None:
-		counter_number = index + 1
+	def _show_queue_hover(self, event, counter_number: int) -> None:
 		waiting = self._waiting_by_counter.get(counter_number, [])
-		if not waiting or not self._queue_overflows(self.queue_views[index]):
+		if not waiting or not self._queue_overflows(self.queue_views[counter_number]):
 			return
-		if index in self._queue_hover_windows:
+		if counter_number in self._queue_hover_windows:
 			return
 		popup = ctk.CTkToplevel(self)
 		popup.wm_overrideredirect(True)
 		popup.geometry(f"+{event.x_root + 14}+{event.y_root + 14}")
 		popup.attributes("-topmost", True)
 		popup.configure(fg_color="#F7FBF6")
-		self._queue_hover_windows[index] = popup
-		popup.bind("<Enter>", lambda _event, i=index: self._cancel_queue_hover_close(i))
-		popup.bind("<Leave>", lambda _event, i=index: self._schedule_queue_hover_close(i))
+		self._queue_hover_windows[counter_number] = popup
+		popup.bind("<Enter>", lambda _event, number=counter_number: self._cancel_queue_hover_close(number))
+		popup.bind("<Leave>", lambda _event, number=counter_number: self._schedule_queue_hover_close(number))
 		ctk.CTkLabel(
 			popup,
 			text=f"COUNTER {counter_number}  /  {len(waiting)} WAITING",
@@ -279,18 +471,21 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		controls = ctk.CTkFrame(tab, fg_color="transparent")
 		controls.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
 		self.transaction_counter = tk.StringVar(value="ALL COUNTERS")
-		ctk.CTkOptionMenu(
+		self.transaction_counter_menu = ctk.CTkOptionMenu(
 			controls,
 			variable=self.transaction_counter,
-			values=["ALL COUNTERS"]
-			+ [f"COUNTER {number}" for number in range(1, self.COUNTER_COUNT + 1)],
+			values=self._counter_filter_values(),
 			command=lambda _value: self._refresh_transactions(),
 			width=130,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
 			fg_color=GREEN,
 			button_color=GREEN_HOVER,
 			button_hover_color=INK,
-		).pack(side="left", padx=(0, 8))
+		)
+		self.transaction_counter_menu.pack(side="left", padx=(0, 8))
+		self._counter_filter_menus.append(
+			(self.transaction_counter_menu, self.transaction_counter)
+		)
 		self.all_transactions = tk.BooleanVar(value=False)
 		ctk.CTkRadioButton(
 			controls,
@@ -488,9 +683,7 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 			).grid(row=row, column=1, padx=(0, 20), pady=7, sticky="ew")
 
 		options = (
-			("Counter", self.transaction_counter, ["ALL COUNTERS"] + [
-				f"COUNTER {number}" for number in range(1, self.COUNTER_COUNT + 1)
-			]),
+			("Counter", self.transaction_counter, self._counter_filter_values()),
 			("Status", self.transaction_status, [
 				"ALL STATUSES", "WAITING", "SERVING", "COMPLETED", "CANCELLED"
 			]),
@@ -503,7 +696,7 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 				text_color=INK,
 				anchor="w",
 			).grid(row=row, column=0, padx=(20, 10), pady=7, sticky="w")
-			ctk.CTkOptionMenu(
+			menu = ctk.CTkOptionMenu(
 				window,
 				variable=variable,
 				values=values,
@@ -511,7 +704,11 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 				fg_color=GREEN,
 				button_color=GREEN_HOVER,
 				button_hover_color=INK,
-			).grid(row=row, column=1, padx=(0, 20), pady=7, sticky="ew")
+			)
+			menu.grid(row=row, column=1, padx=(0, 20), pady=7, sticky="ew")
+			if label == "Counter":
+				self.transaction_filter_counter_menu = menu
+				self._counter_filter_menus.append((menu, variable))
 		buttons = ctk.CTkFrame(window, fg_color="transparent")
 		buttons.grid(
 			row=len(fields) + len(options) + 3,
@@ -614,11 +811,7 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 				limit=None,
 				start_date=start_date,
 				end_date=end_date_exclusive,
-				counter_number=(
-					None
-					if selected_counter == "ALL COUNTERS"
-					else int(selected_counter.replace("COUNTER ", ""))
-				),
+				counter_number=self._counter_number_from_label(selected_counter),
 				search_text=self.transaction_search.get(),
 				ticket_number=self.transaction_ticket.get(),
 				status=status,
@@ -680,8 +873,9 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		controls = ctk.CTkFrame(tab, fg_color="transparent")
 		controls.grid(row=0, column=0, padx=12, pady=10, sticky="ew")
 		self.faq_scope = tk.StringVar(value="Counter")
-		self.faq_counter = tk.StringVar(value="COUNTER 1")
-		self.faq_target = tk.StringVar(value="COUNTER 1")
+		counter_labels = self._counter_filter_values()[1:]
+		self.faq_counter = tk.StringVar(value=counter_labels[0] if counter_labels else "No counters created")
+		self.faq_target = tk.StringVar(value=counter_labels[0] if counter_labels else "No counters created")
 		self.faq_target_ids: dict[str, int] = {}
 		self.faq_concerns_by_counter: dict[str, dict[str, int]] = {}
 		ctk.CTkOptionMenu(
@@ -698,7 +892,7 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		self.faq_counter_menu = ctk.CTkOptionMenu(
 			controls,
 			variable=self.faq_counter,
-			values=[f"COUNTER {number}" for number in range(1, self.COUNTER_COUNT + 1)],
+			values=counter_labels or ["No counters created"],
 			command=lambda _value: self._on_faq_counter_changed(),
 			width=150,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
@@ -783,12 +977,18 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		self._refresh_faq_editor_targets()
 
 	def _refresh_faq_editor_targets(self) -> None:
+		try:
+			counters = get_counters()
+		except psycopg2.Error as error:
+			self.status.set(f"Could not load FAQ counters: {error}")
+			counters = []
+		counter_labels = {
+			f"COUNTER {number} - {name}": number
+			for number, name, _prefix, _username in counters
+		}
 		if self.faq_scope.get() == "Counter":
 			self.faq_counter_menu.pack_forget()
-			self.faq_target_ids = {
-				f"COUNTER {number}": number
-				for number in range(1, self.COUNTER_COUNT + 1)
-			}
+			self.faq_target_ids = counter_labels
 		else:
 			try:
 				concerns = get_concerns(active_only=True)
@@ -796,14 +996,14 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 				self.status.set(f"Could not load FAQ concerns: {error}")
 				concerns = []
 			self.faq_concerns_by_counter = {
-				f"COUNTER {number}": {
+				label: {
 					f"{name} ({prefix})": concern_id
 					for concern_id, name, prefix, concern_counter, _active in concerns
 					if concern_counter == number
 				}
-				for number in range(1, self.COUNTER_COUNT + 1)
+				for label, number in counter_labels.items()
 			}
-			counter_values = list(self.faq_concerns_by_counter)
+			counter_values = list(self.faq_concerns_by_counter) or ["No counters created"]
 			self.faq_counter_menu.configure(values=counter_values)
 			if self.faq_counter.get() not in self.faq_concerns_by_counter:
 				self.faq_counter.set(counter_values[0])
@@ -812,13 +1012,11 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 			self.faq_target_ids = self.faq_concerns_by_counter.get(
 				self.faq_counter.get(), {}
 			)
-		values = list(self.faq_target_ids) or ["No active concerns"]
+		values = list(self.faq_target_ids) or ["No counters created" if not counters else "No active concerns"]
 		self.faq_target_menu.configure(values=values)
 		current = self.faq_target.get()
 		self.faq_target.set(current if current in self.faq_target_ids else values[0])
-		self.faq_target_menu.configure(
-			state="normal" if self.faq_target_ids else "disabled"
-		)
+		self.faq_target_menu.configure(state="normal" if self.faq_target_ids else "disabled")
 		self._refresh_faq_editor_list()
 
 	def _refresh_faq_editor_list(self) -> None:
@@ -972,18 +1170,19 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		)
 		self.month_title.pack(side="left", padx=14)
 		self.calendar_counter = tk.StringVar(value="ALL COUNTERS")
-		ctk.CTkOptionMenu(
+		self.calendar_counter_menu = ctk.CTkOptionMenu(
 			controls,
 			variable=self.calendar_counter,
-			values=["ALL COUNTERS"]
-			+ [f"COUNTER {number}" for number in range(1, self.COUNTER_COUNT + 1)],
+			values=self._counter_filter_values(),
 			command=lambda _value: self._load_calendar(),
 			width=145,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=11),
 			fg_color=GREEN,
 			button_color=GREEN_HOVER,
 			button_hover_color=INK,
-		).pack(side="left", padx=6)
+		)
+		self.calendar_counter_menu.pack(side="left", padx=6)
+		self._counter_filter_menus.append((self.calendar_counter_menu, self.calendar_counter))
 		ctk.CTkButton(
 			controls,
 			text=">",
@@ -1043,9 +1242,15 @@ class AdminDashboard(ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 		widget.configure(state="disabled")
 
 	def destroy(self) -> None:
-		if self._refresh_job is not None:
+		for job in (self._refresh_job, self._tab_refresh_job):
+			if job is not None:
+				try:
+					self.after_cancel(job)
+				except tk.TclError:
+					pass
+		for job in self._queue_hover_jobs.values():
 			try:
-				self.after_cancel(self._refresh_job)
+				self.after_cancel(job)
 			except tk.TclError:
 				pass
 		super().destroy()

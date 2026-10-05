@@ -8,8 +8,9 @@ from database.queries import get_concerns, get_faqs
 class ConcernSelectionMixin:
 	def _next_to_concern(self) -> None:
 		self._update_concern_options()
+		counter_number = self.counter_numbers.get(self.counter_choice.get())
 		if not any(
-			counter == int(self.counter_choice.get().replace("COUNTER ", ""))
+			counter == counter_number
 			for counter in self.concern_counters.values()
 		):
 			messagebox.showwarning(
@@ -24,6 +25,7 @@ class ConcernSelectionMixin:
 
 	def _refresh_concerns(self) -> None:
 		try:
+			self._refresh_counters()
 			concerns = get_concerns(active_only=True)
 			self.concern_ids = {
 				f"{name} ({prefix})": concern_id
@@ -44,11 +46,14 @@ class ConcernSelectionMixin:
 	def _update_concern_options(self) -> None:
 		if not hasattr(self, "concern_menu"):
 			return
-		counter_number = int(self.counter_choice.get().replace("COUNTER ", ""))
-		choices = [
-			name for name, assigned_counter in self.concern_counters.items()
-			if assigned_counter == counter_number
-		]
+		counter_number = self.counter_numbers.get(self.counter_choice.get())
+		if counter_number is None:
+			choices = []
+		else:
+			choices = [
+				name for name, assigned_counter in self.concern_counters.items()
+				if assigned_counter == counter_number
+			]
 		if not choices:
 			choices = ["No active concerns for this counter"]
 		self.concern_menu.configure(values=choices)

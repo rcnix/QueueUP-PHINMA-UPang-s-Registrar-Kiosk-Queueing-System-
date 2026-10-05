@@ -64,3 +64,22 @@ A typical .gitignore should contain:
 .env
 .venv/
 __pycache__/
+
+## First Launch
+
+From the `QUEUEING SYSTEM` directory, run:
+
+    py main.py
+
+The first launch prompts you to create the admin name and password. Later launches require an admin login. Create counters and their counter-user accounts in **Counter Creation** before assigning concerns to them. The kiosk remains a standalone public window:
+
+    py main.py kiosk
+
+## Resetting the App Schema
+
+This permanently deletes every table and record in the configured database's `public` schema. Back up the database first. Connect to the database named by `DB_NAME` in `.env` as its owner or a PostgreSQL superuser, then run:
+
+    DROP SCHEMA public CASCADE;
+    CREATE SCHEMA public AUTHORIZATION your_db_user;
+
+Replace `your_db_user` with the value of `DB_USER` in `.env`. Then run `py main.py`; QueueUP recreates its tables on startup and prompts you to create a new admin.

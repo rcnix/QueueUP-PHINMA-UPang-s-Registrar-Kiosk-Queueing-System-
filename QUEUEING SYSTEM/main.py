@@ -48,11 +48,8 @@ def main() -> None:
         root.destroy()
         return
 
-    if args.screen == "suite":
+    if args.screen in {"suite", "admin"}:
         QueueUPApp().mainloop()
-    elif args.screen == "admin":
-        from admin.admin_window import main as run_screen
-        run_screen(prepare_schema=False)
     elif args.screen == "kiosk":
         from kiosk.kiosk_window import main as run_screen
         run_screen()

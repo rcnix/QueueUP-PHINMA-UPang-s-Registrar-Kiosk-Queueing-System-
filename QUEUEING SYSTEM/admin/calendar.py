@@ -18,12 +18,7 @@ class AdminCalendarMixin:
 			month = self.calendar_month.current() + 1
 			year = int(self.calendar_year.get())
 			self._calendar_date = date(year, month, 1)
-			selected_counter = self.calendar_counter.get()
-			counter_number = (
-				None
-				if selected_counter == "ALL COUNTERS"
-				else int(selected_counter.replace("COUNTER ", ""))
-			)
+			counter_number = self._counter_number_from_label(self.calendar_counter.get())
 			counts = get_monthly_ticket_counts(year, month, counter_number)
 		except (ValueError, psycopg2.Error) as error:
 			self.status.set(f"Could not load calendar: {error}")
@@ -90,12 +85,7 @@ class AdminCalendarMixin:
 				border_color=GREEN if day_date == selected_date else "#D1E4D2",
 			)
 		try:
-			selected_counter = self.calendar_counter.get()
-			counter_number = (
-				None
-				if selected_counter == "ALL COUNTERS"
-				else int(selected_counter.replace("COUNTER ", ""))
-			)
+			counter_number = self._counter_number_from_label(self.calendar_counter.get())
 			rows = get_daily_transactions(selected_date, counter_number)
 			self.day_transaction_title.configure(
 				text=f"{selected_date:%b %d}  /  {len(rows)} TICKETS"

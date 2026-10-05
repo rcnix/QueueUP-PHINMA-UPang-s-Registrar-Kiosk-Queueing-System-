@@ -35,7 +35,8 @@ class KioskWindow(
 		self.concern_ids: dict[str, int] = {}
 		self.concern_counters: dict[str, int] = {}
 		self.ticket_details: tuple[str, str, int] | None = None
-		self.counter_choice = ctk.StringVar(value="COUNTER 1")
+		self.counter_choice = ctk.StringVar(value="No counters available")
+		self.counter_numbers: dict[str, int] = {}
 		self.concern_choice = ctk.StringVar(value="Choose a concern")
 		self.status = ctk.StringVar(value="Welcome. Start a queue.")
 		self.print_status = ctk.StringVar(value="")
@@ -119,18 +120,19 @@ class KioskWindow(
 			font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
 			text_color=GREEN,
 		).pack(pady=(22, 8))
-		ctk.CTkOptionMenu(
+		self.counter_menu = ctk.CTkOptionMenu(
 			page,
 			variable=self.counter_choice,
-			values=[f"COUNTER {number}" for number in range(1, self.COUNTER_COUNT + 1)],
-			command=lambda _value: self._refresh_counter_faq(),
+			values=["No counters available"],
+			command=self._on_counter_choice_changed,
 			width=390,
 			height=54,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"),
 			fg_color=GREEN,
 			button_color=GREEN_HOVER,
 			button_hover_color=INK,
-		).pack(pady=10)
+		)
+		self.counter_menu.pack(pady=10)
 		self.counter_faq_list = self._build_faq_panel(page, "COUNTER FAQs")
 		self._action_button(page, "CONTINUE", self._next_to_concern, width=290).pack(pady=12)
 		self._build_page_navigation(

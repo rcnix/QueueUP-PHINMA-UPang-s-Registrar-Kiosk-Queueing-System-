@@ -15,54 +15,138 @@ def ensure_schema() -> None:
 				cursor.execute(statement)
 
 
-def add_user(username: str, password: str) -> None:
+def add_user(username: str, password: str, role: str = "admin") -> None:
+	if role not in {"admin", "counter"}:
+		raise ValueError("Unsupported user role")
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
 			cursor.execute(
-				"INSERT INTO users (username, password_hash) VALUES (%s, %s)",
+				"INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)",
+				(username, hash_password(password), role),
+			)
+
+
+def admin_exists() -> bool:
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute("SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin')")
+			return cursor.fetchone()[0]
+
+
+def create_first_admin(username: str, password: str) -> None:
+	username = username.strip()
+	if not username or not password:
+		raise ValueError("Username and password are required")
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute("SELECT pg_advisory_xact_lock(810024617)")
+			cursor.execute("SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin')")
+			if cursor.fetchone()[0]:
+				raise ValueError("An admin account already exists")
+			cursor.execute(
+				"INSERT INTO users (username, password_hash, role) VALUES (%s, %s, 'admin')",
 				(username, hash_password(password)),
 			)
 
 
-def authenticate(username: str, password: str) -> bool:
+def authenticate(username: str, password: str, role: str = "admin") -> bool:
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
 			cursor.execute(
-				"SELECT password_hash FROM users WHERE username = %s",
-				(username,),
+				"SELECT password_hash FROM users WHERE username = %s AND role = %s",
+				(username, role),
 			)
 			row = cursor.fetchone()
 	return row is not None and verify_password(password, row[0])
+
+
+def create_counter_account(
+	name: str,
+	prefix: str,
+	username: str,
+	password: str,
+) -> int:
+	name = name.strip()
+	prefix = prefix.strip().upper()
+	username = username.strip()
+	if not name or not username or not password:
+		raise ValueError("Counter name, username, and password are required")
+	if not re.fullmatch(r"[A-Z0-9]{1,6}", prefix):
+		raise ValueError("Prefix must be 1-6 letters or numbers")
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute(
+				"INSERT INTO users (username, password_hash, role) VALUES (%s, %s, 'counter') RETURNING id",
+				(username, hash_password(password)),
+			)
+			user_id = cursor.fetchone()[0]
+			cursor.execute(
+				"INSERT INTO counters (name, prefix, user_id) VALUES (%s, %s, %s) RETURNING counter_number",
+				(name, prefix, user_id),
+			)
+			return cursor.fetchone()[0]
+
+
+def get_counters(active_only: bool = True) -> list[tuple[int, str, str, str]]:
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute(
+				"""
+				SELECT c.counter_number, c.name, c.prefix, u.username
+				FROM counters AS c
+				JOIN users AS u ON u.id = c.user_id
+				WHERE (%s = FALSE OR c.active = TRUE)
+				ORDER BY c.counter_number
+				""",
+				(active_only,),
+			)
+			return cursor.fetchall()
+
+
+def delete_all_application_data() -> None:
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute(
+				"TRUNCATE TABLE users, counters, concerns, faqs, tickets, ticket_sequences RESTART IDENTITY CASCADE"
+			)
 
 
 def delete_user(username: str, password: str) -> bool:
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
 			cursor.execute(
-				"SELECT password_hash FROM users WHERE username = %s",
+				"SELECT password_hash, role FROM users WHERE username = %s",
 				(username,),
 			)
 			row = cursor.fetchone()
 			if row is None or not verify_password(password, row[0]):
 				return False
-			cursor.execute("DELETE FROM users WHERE username = %s", (username,))
+			if row[1] == "admin":
+				cursor.execute(
+					"TRUNCATE TABLE users, counters, concerns, faqs, tickets, ticket_sequences RESTART IDENTITY CASCADE"
+				)
+			else:
+				cursor.execute("DELETE FROM users WHERE username = %s", (username,))
 	return True
 
 
-def add_concern(name: str, prefix: str, counter_number: int) -> None:
+def add_concern(name: str, counter_number: int) -> None:
 	name = name.strip()
-	prefix = prefix.strip().upper()
 	if not name:
 		raise ValueError("Concern name is required")
-	if not re.fullmatch(r"[A-Z0-9]{1,6}", prefix):
-		raise ValueError("Prefix must be 1-6 letters or numbers")
-	if not 1 <= counter_number <= 6:
-		raise ValueError("counter_number must be between 1 and 6")
+	if counter_number < 1:
+		raise ValueError("Choose a registered counter")
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
 			cursor.execute(
-				"INSERT INTO concerns (name, prefix, counter_number) VALUES (%s, %s, %s)",
-				(name, prefix, counter_number),
+				"SELECT EXISTS (SELECT 1 FROM counters WHERE counter_number = %s AND active = TRUE)",
+				(counter_number,),
+			)
+			if not cursor.fetchone()[0]:
+				raise ValueError("Choose a registered counter")
+			cursor.execute(
+				"INSERT INTO concerns (name, counter_number) VALUES (%s, %s)",
+				(name, counter_number),
 			)
 
 
@@ -71,10 +155,12 @@ def get_concerns(active_only: bool = False) -> list[tuple[int, str, str, int, bo
 		with connection.cursor() as cursor:
 			cursor.execute(
 				"""
-				SELECT id, name, prefix, counter_number, active
+				SELECT concerns.id, concerns.name, counters.prefix,
+					concerns.counter_number, concerns.active
 				FROM concerns
-				WHERE (%s = FALSE OR active = TRUE)
-				ORDER BY counter_number, name
+				JOIN counters USING (counter_number)
+				WHERE (%s = FALSE OR concerns.active = TRUE)
+				ORDER BY concerns.counter_number, concerns.name
 				""",
 				(active_only,),
 			)
@@ -137,8 +223,8 @@ def get_faqs(
 	if (counter_number is None) == (concern_id is None):
 		raise ValueError("Choose exactly one FAQ target: counter or concern")
 	if counter_number is not None:
-		if not 1 <= counter_number <= 6:
-			raise ValueError("counter_number must be between 1 and 6")
+		if counter_number < 1:
+			raise ValueError("counter_number must be positive")
 		where_clause = "counter_number = %s"
 		parameter = counter_number
 	else:
@@ -166,8 +252,8 @@ def save_faq(
 		raise ValueError("Both the FAQ question and answer are required")
 	if (counter_number is None) == (concern_id is None):
 		raise ValueError("Choose exactly one FAQ target: counter or concern")
-	if counter_number is not None and not 1 <= counter_number <= 6:
-		raise ValueError("counter_number must be between 1 and 6")
+	if counter_number is not None and counter_number < 1:
+		raise ValueError("counter_number must be positive")
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
 			if faq_id is None:
@@ -207,7 +293,13 @@ def issue_ticket(
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
 			cursor.execute(
-				"SELECT prefix, counter_number, name FROM concerns WHERE id = %s AND active = TRUE FOR SHARE",
+				"""
+				SELECT counters.prefix, concerns.counter_number, concerns.name
+				FROM concerns
+			JOIN counters USING (counter_number)
+			WHERE concerns.id = %s AND concerns.active = TRUE AND counters.active = TRUE
+			FOR SHARE OF concerns, counters
+				""",
 				(concern_id,),
 			)
 			concern = cursor.fetchone()
@@ -245,8 +337,8 @@ def issue_ticket(
 
 
 def add_ticket(ticket_number: str, counter_number: int) -> None:
-	if not 1 <= counter_number <= 6:
-		raise ValueError("counter_number must be between 1 and 6")
+	if counter_number < 1:
+		raise ValueError("counter_number must be positive")
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
 			cursor.execute(
@@ -290,7 +382,7 @@ def get_queue_snapshot() -> dict[int, tuple[str | None, list[str]]]:
 				SELECT counters.counter_number,
 					active_ticket.ticket_number,
 					COALESCE(waiting_tickets.ticket_numbers, ARRAY[]::TEXT[])
-				FROM generate_series(1, 6) AS counters(counter_number)
+				FROM counters
 				LEFT JOIN LATERAL (
 					SELECT ticket_number
 					FROM tickets
@@ -317,20 +409,32 @@ def get_latest_tickets() -> dict[int, str | None]:
 		with connection.cursor() as cursor:
 			cursor.execute(
 				"""
-				SELECT DISTINCT ON (counter_number) counter_number, ticket_number
-				FROM tickets
-				ORDER BY counter_number, id DESC
+				SELECT counters.counter_number, latest.ticket_number
+				FROM counters
+				LEFT JOIN LATERAL (
+					SELECT ticket_number
+					FROM tickets
+					WHERE tickets.counter_number = counters.counter_number
+					ORDER BY id DESC
+					LIMIT 1
+				) AS latest ON TRUE
+				ORDER BY counters.counter_number
 				"""
 			)
-			latest = {counter_number: ticket for counter_number, ticket in cursor.fetchall()}
-	return {counter_number: latest.get(counter_number) for counter_number in range(1, 7)}
+			return dict(cursor.fetchall())
 
 
 def serve_next(counter_number: int) -> str | None:
-	if not 1 <= counter_number <= 6:
-		raise ValueError("counter_number must be between 1 and 6")
+	if counter_number < 1:
+		raise ValueError("counter_number must be positive")
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
+			cursor.execute(
+				"SELECT EXISTS (SELECT 1 FROM counters WHERE counter_number = %s AND active = TRUE)",
+				(counter_number,),
+			)
+			if not cursor.fetchone()[0]:
+				raise ValueError("That counter is not registered")
 			cursor.execute(
 				"""
 				SELECT id, ticket_number
@@ -395,8 +499,8 @@ def get_transactions(
 		conditions.append("t.created_at < %s")
 		parameters.append(end_date)
 	if counter_number is not None:
-		if not 1 <= counter_number <= 6:
-			raise ValueError("counter_number must be between 1 and 6")
+		if counter_number < 1:
+			raise ValueError("counter_number must be positive")
 		conditions.append("t.counter_number = %s")
 		parameters.append(counter_number)
 	if search_text and search_text.strip():

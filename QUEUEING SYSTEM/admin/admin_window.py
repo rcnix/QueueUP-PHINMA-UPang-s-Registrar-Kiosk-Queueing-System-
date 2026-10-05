@@ -4,7 +4,6 @@ import tkinter.messagebox as messagebox
 import customtkinter as ctk
 import psycopg2
 
-from admin.dashboard import AdminDashboard
 from admin.styles import FONT_FAMILY, GREEN, INK, PALE_GREEN
 from assets import center_window, set_window_icon
 from database.queries import ensure_schema, get_queue_snapshot
@@ -126,16 +125,12 @@ def main(prepare_schema: bool = True) -> None:
 	ctk.set_appearance_mode("Light")
 	ctk.set_default_color_theme("green")
 	ctk.ThemeManager.theme["CTkFont"]["family"] = FONT_FAMILY
-	root = ctk.CTk()
-	root.title("QueueUP Admin")
-	root.geometry("1200x800")
-	root.minsize(850, 560)
-	center_window(root)
-	set_window_icon(root)
 	if prepare_schema:
 		try:
 			ensure_schema()
 		except psycopg2.Error as error:
+			root = ctk.CTk()
+			root.withdraw()
 			messagebox.showerror(
 				"Database setup error",
 				"Could not prepare the PostgreSQL database.\n\n"
@@ -146,7 +141,8 @@ def main(prepare_schema: bool = True) -> None:
 			)
 			root.destroy()
 			return
-	AdminDashboard(root)
+	from application import QueueUPApp
+	root = QueueUPApp()
 	root.mainloop()
 
 

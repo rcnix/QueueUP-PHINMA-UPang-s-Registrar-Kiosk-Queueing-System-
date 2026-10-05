@@ -5,7 +5,7 @@ import customtkinter as ctk
 import psycopg2
 
 from admin.styles import FONT_FAMILY, GREEN, GREEN_HOVER, INK
-from database.queries import add_concern, delete_concern, get_concern_stats, get_concerns
+from database.queries import add_concern, delete_concern, get_concern_stats, get_concerns, get_counters
 
 
 class ConcernManagementMixin:
@@ -21,37 +21,33 @@ class ConcernManagementMixin:
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
 		)
 		self.concern_name.grid(row=0, column=0, padx=8, pady=10)
-		self.concern_prefix = ctk.CTkEntry(
-			form,
-			placeholder_text="Ticket prefix",
-			width=140,
-			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
-		)
-		self.concern_prefix.grid(row=0, column=1, padx=8, pady=10)
-		self.concern_counter = ctk.StringVar(value="COUNTER 1")
-		ctk.CTkOptionMenu(
+		self.concern_counter = ctk.StringVar(value="Create a counter first")
+		self.concern_counter_numbers: dict[str, int] = {}
+		self.concern_counter_menu = ctk.CTkOptionMenu(
 			form,
 			variable=self.concern_counter,
-			values=[f"COUNTER {number}" for number in range(1, self.COUNTER_COUNT + 1)],
-			width=130,
+			values=["Create a counter first"],
+			width=230,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
 			fg_color=GREEN,
 			button_color=GREEN_HOVER,
 			button_hover_color=INK,
-		).grid(row=0, column=2, padx=8, pady=10)
-		ctk.CTkButton(
+		)
+		self.concern_counter_menu.grid(row=0, column=1, padx=8, pady=10)
+		self.concern_add_button = ctk.CTkButton(
 			form,
 			text="Add Concern",
 			command=self._add_concern,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
 			fg_color=GREEN,
 			hover_color=GREEN_HOVER,
-		).grid(row=0, column=3, padx=8, pady=10)
+		)
+		self.concern_add_button.grid(row=0, column=2, padx=8, pady=10)
 		ctk.CTkLabel(
 			tab,
 			text=(
-				"A concern is a service offered at the kiosk. It defines the ticket prefix and routes the request "
-				"to its assigned counter. Choosing a concern does not create a ticket; submitting at the kiosk does.\n"
+				"A concern is a service offered at the kiosk. It routes the request to its assigned counter; "
+				"tickets use that counter's fixed prefix. Choosing a concern does not create a ticket; submitting at the kiosk does.\n"
 				"Delete a concern to remove it from new kiosk requests. If tickets already use it, its history is retained."
 			),
 			font=ctk.CTkFont(family=FONT_FAMILY, size=11),
@@ -70,23 +66,49 @@ class ConcernManagementMixin:
 			text_color=GREEN,
 		).grid(row=0, column=0, sticky="w")
 		self.concern_counter_filter = tk.StringVar(value="ALL COUNTERS")
-		ctk.CTkOptionMenu(
+		self.concern_counter_filter_menu = ctk.CTkOptionMenu(
 			service_controls,
 			variable=self.concern_counter_filter,
-			values=["ALL COUNTERS"]
-			+ [f"COUNTER {number}" for number in range(1, self.COUNTER_COUNT + 1)],
+			values=["ALL COUNTERS"],
 			command=lambda _value: self._refresh_concerns(),
 			width=150,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=11),
 			fg_color=GREEN,
 			button_color=GREEN_HOVER,
 			button_hover_color=INK,
-		).grid(row=0, column=1, sticky="e")
+		)
+		self.concern_counter_filter_menu.grid(row=0, column=1, sticky="e")
 		self.concern_list = ctk.CTkScrollableFrame(tab)
 		self.concern_list.grid(row=3, column=0, padx=10, pady=8, sticky="nsew")
+		self._refresh_concern_counter_options()
+
+	def _refresh_concern_counter_options(self) -> None:
+		try:
+			counters = get_counters()
+		except psycopg2.Error as error:
+			self.status.set(f"Could not load counters: {error}")
+			counters = []
+		self.concern_counter_numbers = {
+			f"COUNTER {number} - {counter_name}": number
+			for number, counter_name, _prefix, _username in counters
+		}
+		values = list(self.concern_counter_numbers) or ["Create a counter first"]
+		self.concern_counter_menu.configure(values=values, state="normal" if self.concern_counter_numbers else "disabled")
+		if self.concern_counter.get() not in self.concern_counter_numbers:
+			self.concern_counter.set(values[0])
+		self.concern_add_button.configure(state="normal" if self.concern_counter_numbers else "disabled")
+		self.concern_counter_filter_numbers = {
+			f"COUNTER {number} - {counter_name}": number
+			for number, counter_name, _prefix, _username in counters
+		}
+		filter_values = ["ALL COUNTERS", *self.concern_counter_filter_numbers]
+		self.concern_counter_filter_menu.configure(values=filter_values)
+		if self.concern_counter_filter.get() not in filter_values:
+			self.concern_counter_filter.set("ALL COUNTERS")
 
 	def _add_concern(self) -> None:
 		try:
+			self._refresh_concern_counter_options()
 			name = self.concern_name.get().strip()
 			existing_names = {
 				concern[1].casefold() for concern in get_concerns(active_only=True)
@@ -105,13 +127,11 @@ class ConcernManagementMixin:
 				):
 					return
 				name = duplicate_name
-			add_concern(
-				name,
-				self.concern_prefix.get(),
-				int(self.concern_counter.get().replace("COUNTER ", "")),
-			)
+			counter_number = self.concern_counter_numbers.get(self.concern_counter.get())
+			if counter_number is None:
+				raise ValueError("Create a counter before adding concerns")
+			add_concern(name, counter_number)
 			self.concern_name.delete(0, "end")
-			self.concern_prefix.delete(0, "end")
 			self.status.set("Concern added.")
 			self._refresh_concerns()
 		except (psycopg2.Error, ValueError) as error:
@@ -119,6 +139,7 @@ class ConcernManagementMixin:
 
 	def _refresh_concerns(self) -> None:
 		try:
+			self._refresh_concern_counter_options()
 			stats = {
 				(name, counter): count
 				for name, counter, count in get_concern_stats()
@@ -126,9 +147,11 @@ class ConcernManagementMixin:
 			for child in self.concern_list.winfo_children():
 				child.destroy()
 			row = 0
-			selected_counter = self.concern_counter_filter.get()
+			selected_counter = self.concern_counter_filter_numbers.get(
+				self.concern_counter_filter.get()
+			)
 			for concern_id, name, prefix, counter, active in get_concerns(active_only=True):
-				if selected_counter != "ALL COUNTERS" and counter != int(selected_counter.replace("COUNTER ", "")):
+				if selected_counter is not None and counter != selected_counter:
 					continue
 				ctk.CTkLabel(
 					self.concern_list,
