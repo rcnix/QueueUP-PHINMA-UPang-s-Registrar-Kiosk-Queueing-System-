@@ -1,4 +1,4 @@
-##**🎟️ QueueUP: PHINMA-UPang's Registrar Kiosk-Queueing System**
+**🎟️ QueueUP: PHINMA-UPang's Registrar Kiosk-Queueing System**
 
 A smarter queue starts before the number is called.
 
@@ -8,7 +8,7 @@ Instead of treating queueing as simply “take a number and wait,” QueueUP con
 
 It brings together self-service ticketing, counter management, administration, transaction monitoring, receipt printing, and public queue displays into one system.
 
-##// REQUIREMENTS
+##REQUIREMENTS
 
 Before running QueueUP, make sure you have:
 
