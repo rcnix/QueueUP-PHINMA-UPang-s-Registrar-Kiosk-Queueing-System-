@@ -36,6 +36,19 @@ SCHEMA_STATEMENTS = (
 	"ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'counter'))",
 	"CREATE UNIQUE INDEX IF NOT EXISTS users_single_admin ON users (role) WHERE role = 'admin'",
 	"""
+	CREATE TABLE IF NOT EXISTS kiosk_credentials (
+		id SMALLINT PRIMARY KEY CHECK (id = 1),
+		username TEXT NOT NULL UNIQUE,
+		password_hash TEXT NOT NULL
+	)
+	""",
+	"""
+	CREATE TABLE IF NOT EXISTS counter_passwords (
+		user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+		password TEXT NOT NULL
+	)
+	""",
+	"""
 	CREATE TABLE IF NOT EXISTS counters (
 		counter_number BIGSERIAL PRIMARY KEY,
 		name TEXT NOT NULL UNIQUE,

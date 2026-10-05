@@ -5,6 +5,11 @@ import tkinter as tk
 LOGO_PATH = Path(__file__).resolve().parent / "icons" / "logo.ico"
 
 
+def format_counter_label(number: int, name: str) -> str:
+	counter = f"COUNTER {number}"
+	return counter if name.strip().casefold() == counter.casefold() else f"{counter} - {name}"
+
+
 def set_window_icon(window) -> None:
 	if not LOGO_PATH.is_file():
 		return

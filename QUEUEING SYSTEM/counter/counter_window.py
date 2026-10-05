@@ -139,16 +139,12 @@ class CounterControls(ctk.CTkFrame):
 		super().destroy()
 
 
-class CounterWindow(ctk.CTk):
-	def __init__(self, counter_number: int = 1):
-		super().__init__()
+class CounterWindow(ctk.CTkFrame):
+	def __init__(self, parent, counter_number: int, on_logout=None):
+		super().__init__(parent, corner_radius=0, fg_color=PALE_GREEN)
 		self.counter_number = counter_number
-		self.title(f"QueueUP - Counter {counter_number}")
-		set_window_icon(self)
-		self.configure(fg_color=PALE_GREEN)
-		self.geometry("700x600")
-		self.minsize(540, 480)
-		center_window(self)
+		self.on_logout = on_logout
+		self.pack(fill="both", expand=True)
 		self.grid_columnconfigure(0, weight=1)
 		self.grid_rowconfigure(3, weight=1)
 		self.status = ctk.StringVar(value="Connecting to the queue...")
@@ -159,14 +155,28 @@ class CounterWindow(ctk.CTk):
 		self._refresh()
 
 	def _build_ui(self) -> None:
+		header = ctk.CTkFrame(self, fg_color="transparent")
+		header.grid(row=0, column=0, padx=24, pady=(18, 4), sticky="ew")
+		header.grid_columnconfigure(0, weight=1)
 		ctk.CTkLabel(
-			self,
+			header,
 			text=f"COUNTER {self.counter_number}",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=32, weight="bold"),
 			text_color=INK,
-		).grid(row=0, column=0, padx=24, pady=(24, 8))
+		).grid(row=0, column=0, sticky="w")
+		if self.on_logout is not None:
+			ctk.CTkButton(
+				header,
+				text="Log Out",
+				width=100,
+				command=self.on_logout,
+				font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+				fg_color="#DDEBDD",
+				hover_color="#C6DEC7",
+				text_color=INK,
+			).grid(row=0, column=1, sticky="e")
 		ctk.CTkLabel(self, text="NOW SERVING", font=ctk.CTkFont(family=FONT_FAMILY, size=20, weight="bold"), text_color=GREEN).grid(
-			row=1, column=0, padx=20, pady=(14, 0)
+			row=1, column=0, padx=20, pady=(8, 0)
 		)
 		ctk.CTkLabel(
 			self,
@@ -212,7 +222,18 @@ class CounterWindow(ctk.CTk):
 
 	def _refresh(self) -> None:
 		try:
-			serving, waiting = get_queue_snapshot()[self.counter_number]
+			queue = get_queue_snapshot().get(self.counter_number)
+			if queue is None:
+				self.status.set("This counter is no longer active. Please log out.")
+				self.current_ticket.set("--")
+				self.waiting_count.set("Waiting: 0")
+				self.queue_text.configure(state="normal")
+				self.queue_text.delete("1.0", "end")
+				self.queue_text.insert("1.0", "Counter is no longer active.")
+				self.queue_text.configure(state="disabled")
+				self._refresh_job = self.after(2000, self._refresh)
+				return
+			serving, waiting = queue
 			self.current_ticket.set(serving or "--")
 			self.waiting_count.set(f"Waiting: {len(waiting)}")
 			self.queue_text.configure(state="normal")
@@ -245,6 +266,23 @@ class CounterWindow(ctk.CTk):
 		except (psycopg2.Error, ValueError) as error:
 			messagebox.showerror("Queue error", str(error), parent=self)
 
+	def destroy(self) -> None:
+		if self._refresh_job is not None:
+			try:
+				self.after_cancel(self._refresh_job)
+			except tk.TclError:
+				pass
+			self._refresh_job = None
+		super().destroy()
+
 
 def main(counter_number: int = 1) -> None:
-	CounterWindow(counter_number).mainloop()
+	root = ctk.CTk()
+	root.title(f"QueueUP - Counter {counter_number}")
+	set_window_icon(root)
+	root.configure(fg_color=PALE_GREEN)
+	root.geometry("700x600")
+	root.minsize(540, 480)
+	center_window(root)
+	CounterWindow(root, counter_number)
+	root.mainloop()

@@ -12,14 +12,17 @@ from admin.calendar import AdminCalendarMixin
 from admin.concerns import ConcernManagementMixin
 from admin.counters import CounterCreationMixin
 from admin.styles import FONT_FAMILY, GREEN, GREEN_HOVER, INK
+from assets import format_counter_label, set_window_icon
 from database.queries import (
 	delete_all_application_data,
 	get_concerns,
 	get_counters,
 	get_faqs,
+	get_kiosk_login_username,
 	get_latest_tickets,
 	get_queue_snapshot,
 	get_transactions,
+	configure_kiosk_login,
 	delete_faq,
 	save_faq,
 )
@@ -69,32 +72,25 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			"Calendar",
 			"FAQ Editor",
 			"Counter Creation",
+			"Kiosk User",
 		):
 			self.section_menu.add_command(
 				label=section,
 				command=lambda name=section: self._select_section(name),
 			)
+		self.section_menu.add_separator()
+		self.section_menu.add_command(label="Settings", command=self._show_settings)
 		self.section_button = ctk.CTkButton(
 			actions,
-			text="\u2630 Sections",
-			width=112,
+			text="\u2630",
+			width=42,
 			command=self._show_section_menu,
-			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+			font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
 			fg_color="#DDEBDD",
 			hover_color="#C6DEC7",
 			text_color=INK,
 		)
-		self.section_button.pack(side="left", padx=(0, 8))
-		ctk.CTkButton(
-			actions,
-			text="\u2699 Settings",
-			width=112,
-			command=self._show_settings,
-			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
-			fg_color="#DDEBDD",
-			hover_color="#C6DEC7",
-			text_color=INK,
-		).pack(side="left")
+		self.section_button.pack(side="left")
 		self.tabs = ctk.CTkTabview(self, command=self._on_admin_tab_changed)
 		self.tabs.pack(fill="both", expand=True, padx=18, pady=10)
 		self.tabs.add("Live Queues")
@@ -103,12 +99,14 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self.tabs.add("Calendar")
 		self.tabs.add("FAQ Editor")
 		self.tabs.add("Counter Creation")
+		self.tabs.add("Kiosk User")
 		self._build_live_tab(self.tabs.tab("Live Queues"))
 		self._build_transactions_tab(self.tabs.tab("Transactions"))
 		self._build_concerns_tab(self.tabs.tab("Concerns"))
 		self._build_calendar_tab(self.tabs.tab("Calendar"))
 		self._build_faq_editor_tab(self.tabs.tab("FAQ Editor"))
 		self._build_counter_creation_tab(self.tabs.tab("Counter Creation"))
+		self._build_kiosk_user_tab(self.tabs.tab("Kiosk User"))
 		self.tabs._segmented_button.grid_remove()
 		ctk.CTkLabel(self, textvariable=self.status, anchor="center").pack(
 			fill="x", padx=22, pady=(0, 10)
@@ -143,7 +141,7 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			self.status.set(f"Could not load counters: {error}")
 			counters = []
 		self.counter_number_by_label = {
-			f"COUNTER {number} - {name}": number
+			format_counter_label(number, name): number
 			for number, name, _prefix, _username in counters
 		}
 		return ["ALL COUNTERS", *self.counter_number_by_label]
@@ -163,6 +161,102 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			return None
 		return self.counter_number_by_label.get(label)
 
+	def _build_kiosk_user_tab(self, tab) -> None:
+		tab.grid_columnconfigure(0, weight=1)
+		card = ctk.CTkFrame(
+			tab,
+			fg_color="#F7FBF6",
+			border_width=1,
+			border_color="#BCD5BE",
+			corner_radius=8,
+		)
+		card.grid(row=0, column=0, padx=24, pady=24, sticky="new")
+		card.grid_columnconfigure(0, weight=1)
+		ctk.CTkLabel(
+			card,
+			text="CREATE OR UPDATE KIOSK USER",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=17, weight="bold"),
+			text_color=GREEN,
+			anchor="w",
+		).grid(row=0, column=0, padx=20, pady=(18, 6), sticky="ew")
+		ctk.CTkLabel(
+			card,
+			text="Set the shared credentials used by the Kiosk User option on the login screen.",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+			text_color=INK,
+			wraplength=700,
+			anchor="w",
+			justify="left",
+		).grid(row=1, column=0, padx=20, pady=(0, 12), sticky="ew")
+		ctk.CTkLabel(
+			card,
+			text="Kiosk username",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+			text_color=INK,
+			anchor="w",
+		).grid(row=2, column=0, padx=20, pady=(4, 2), sticky="ew")
+		try:
+			username = get_kiosk_login_username()
+		except psycopg2.Error as error:
+			self.status.set(f"Could not load kiosk account: {error}")
+			username = None
+		self.kiosk_username_entry = ctk.CTkEntry(
+			card,
+			placeholder_text="Shared kiosk username",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+		)
+		self.kiosk_username_entry.grid(row=3, column=0, padx=20, pady=(0, 8), sticky="ew")
+		if username is not None:
+			self.kiosk_username_entry.insert(0, username)
+		ctk.CTkLabel(
+			card,
+			text="Kiosk password",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+			text_color=INK,
+			anchor="w",
+		).grid(row=4, column=0, padx=20, pady=(4, 2), sticky="ew")
+		self.kiosk_password_entry = ctk.CTkEntry(
+			card,
+			placeholder_text="Set or replace kiosk password",
+			show="*",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+		)
+		self.kiosk_password_entry.grid(row=5, column=0, padx=20, pady=(0, 8), sticky="ew")
+		ctk.CTkLabel(
+			card,
+			text="Confirm kiosk password",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+			text_color=INK,
+			anchor="w",
+		).grid(row=6, column=0, padx=20, pady=(4, 2), sticky="ew")
+		self.kiosk_confirm_entry = ctk.CTkEntry(
+			card,
+			placeholder_text="Re-enter kiosk password",
+			show="*",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+		)
+		self.kiosk_confirm_entry.grid(row=7, column=0, padx=20, pady=(0, 8), sticky="ew")
+		self.kiosk_status = ctk.CTkLabel(
+			card,
+			text=(
+				"Kiosk user is configured. Enter a new password to replace it."
+				if username is not None
+				else "No kiosk user exists yet."
+			),
+			font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+			text_color=INK,
+			anchor="w",
+		)
+		self.kiosk_status.grid(row=8, column=0, padx=20, pady=(0, 8), sticky="ew")
+		ctk.CTkButton(
+			card,
+			text="Save Kiosk User",
+			command=self._save_kiosk_credentials,
+			font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+			fg_color=GREEN,
+			hover_color=GREEN_HOVER,
+		).grid(row=9, column=0, padx=20, pady=(2, 18), sticky="ew")
+
 	def _show_settings(self) -> None:
 		if self._settings_window is not None and self._settings_window.winfo_exists():
 			self._settings_window.deiconify()
@@ -174,6 +268,7 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		window.geometry("310x250")
 		window.resizable(False, False)
 		window.transient(self.winfo_toplevel())
+		set_window_icon(window)
 		window.grid_columnconfigure(0, weight=1)
 		ctk.CTkLabel(
 			window,
@@ -205,6 +300,33 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			fg_color="#A64C42",
 			hover_color="#873C34",
 		).grid(row=3, column=0, padx=20, pady=(6, 18), sticky="ew")
+
+	def _save_kiosk_credentials(self) -> None:
+		username = self.kiosk_username_entry.get().strip()
+		password = self.kiosk_password_entry.get()
+		if password != self.kiosk_confirm_entry.get():
+			messagebox.showwarning(
+				"Kiosk password mismatch",
+				"Enter the same password in both password fields.",
+				parent=self,
+			)
+			return
+		try:
+			configure_kiosk_login(username, password)
+		except (psycopg2.Error, ValueError) as error:
+			messagebox.showerror(
+				"Could not save kiosk credentials",
+				str(error),
+				parent=self,
+			)
+			return
+		self.kiosk_password_entry.delete(0, "end")
+		self.kiosk_confirm_entry.delete(0, "end")
+		self.kiosk_status.configure(
+			text="Kiosk credentials saved. The password is stored as a one-way hash.",
+			text_color=GREEN,
+		)
+		self.status.set("Kiosk login credentials updated.")
 
 	def _logout(self, settings_window) -> None:
 		settings_window.destroy()
@@ -289,7 +411,7 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			panel.grid_rowconfigure(6, weight=1)
 			counter_title = ctk.CTkLabel(
 				panel,
-				text=f"COUNTER {counter_number}  /  {counter_name}",
+				text=format_counter_label(counter_number, counter_name),
 				font=ctk.CTkFont(family=FONT_FAMILY, size=17, weight="bold"),
 				text_color=GREEN,
 			)
@@ -409,6 +531,7 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		if counter_number in self._queue_hover_windows:
 			return
 		popup = ctk.CTkToplevel(self)
+		set_window_icon(popup)
 		popup.wm_overrideredirect(True)
 		popup.geometry(f"+{event.x_root + 14}+{event.y_root + 14}")
 		popup.attributes("-topmost", True)
@@ -510,8 +633,9 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self.transaction_history_date = DateEntry(
 			controls,
 			date_pattern="yyyy-mm-dd",
-			font=(FONT_FAMILY, 10),
-			width=11,
+			font=(FONT_FAMILY, 15),
+			width=16,
+			borderwidth=2,
 		)
 		self.transaction_history_date.pack(side="left", padx=(0, 8))
 		self.transaction_history_date.bind(
@@ -632,6 +756,7 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		window.geometry("460x400")
 		window.minsize(420, 380)
 		window.transient(self.winfo_toplevel())
+		set_window_icon(window)
 		window.grid_columnconfigure(1, weight=1)
 		ctk.CTkLabel(
 			window,
@@ -650,7 +775,9 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self.transaction_filter_date_picker = DateEntry(
 			window,
 			date_pattern="yyyy-mm-dd",
-			width=14,
+			font=(FONT_FAMILY, 15),
+			width=16,
+			borderwidth=2,
 		)
 		self.transaction_filter_date_picker.set_date(self.transaction_filter_date_value)
 		self.transaction_filter_date_picker.bind(
@@ -983,7 +1110,7 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			self.status.set(f"Could not load FAQ counters: {error}")
 			counters = []
 		counter_labels = {
-			f"COUNTER {number} - {name}": number
+			format_counter_label(number, name): number
 			for number, name, _prefix, _username in counters
 		}
 		if self.faq_scope.get() == "Counter":
