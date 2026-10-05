@@ -8,7 +8,7 @@ Instead of treating queueing as simply “take a number and wait,” QueueUP con
 
 It brings together self-service ticketing, counter management, administration, transaction monitoring, receipt printing, and public queue displays into one system.
 
-##REQUIREMENTS
+// REQUIREMENTS
 
 Before running QueueUP, make sure you have:
 
@@ -20,7 +20,7 @@ Before running QueueUP, make sure you have:
         NOTE: Windows is recommended for printing because pywin32 is included in the project's Windows requirements.
 
 
-##// INSTALLATION
+// INSTALLATION
 
     -- Clone the repository and open a terminal in the repository root — the directory containing requirements.txt.
 
@@ -28,15 +28,15 @@ Before running QueueUP, make sure you have:
 
     -- py -m venv .venv
 
-##// ACTIVATION:
+// ACTIVATION:
 
     -- .\.venv\Scripts\Activate.ps1
 
-##// LIBRARIES:
+// LIBRARIES:
 
 -- python -m pip install -r requirements.txt
 
-##// DATABASE CONFIGURATION //
+// DATABASE CONFIGURATION //
 
 CREATE:
     QUEUEING SYSTEM/.env
