@@ -26,12 +26,13 @@ def print_receipt(ticket_number: str, concern_name: str, counter_number: int) ->
 			"\x1b@\x1ba\x01"
 			"QUEUEUP\n"
 			"\x1ba\x00"
-			"--------------------------------\n"
+			"-----------------------------------------\n"
 			f"Ticket: {ticket_number}\n"
 			f"Concern: {concern_name}\n"
 			f"Proceed to Counter {counter_number}\n"
 			f"Issued: {datetime.now():%Y-%m-%d %H:%M}\n"
-			"--------------------------------\n\n\n\x1dV\x00"
+			"-----------------------------------------\n\n\n\x1dV\x00"
+			"THANK YOU!\n"
 		)
 		win32print.WritePrinter(printer, receipt.encode("cp437", errors="replace"))
 		win32print.EndPagePrinter(printer)

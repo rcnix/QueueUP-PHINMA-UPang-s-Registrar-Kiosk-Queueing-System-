@@ -21,3 +21,43 @@ def center_window(window: tk.Misc) -> None:
 	x = max((window.winfo_screenwidth() - width) // 2, 0)
 	y = max((window.winfo_screenheight() - height) // 2, 0)
 	window.geometry(f"+{x}+{y}")
+
+
+def enable_tab_auto_hide_on_scroll(tabview: tk.Misc) -> None:
+	root = tabview.winfo_toplevel()
+	state = getattr(root, "_tab_scroll_state", None)
+	if state is None:
+		state = {"tabviews": [], "restore_job": None}
+		root._tab_scroll_state = state
+
+		def show_tabs() -> None:
+			for registered_tabview in state["tabviews"]:
+				try:
+					registered_tabview._segmented_button.grid()
+				except tk.TclError:
+					pass
+			state["restore_job"] = None
+
+		def hide_tabs(_event=None) -> None:
+			for registered_tabview in state["tabviews"]:
+				try:
+					registered_tabview._segmented_button.grid_remove()
+				except tk.TclError:
+					pass
+			if state["restore_job"] is not None:
+				try:
+					root.after_cancel(state["restore_job"])
+				except tk.TclError:
+					pass
+			state["restore_job"] = root.after(1000, show_tabs)
+
+		root._tab_scroll_hide = hide_tabs
+		root.bind_all("<MouseWheel>", hide_tabs, add="+")
+		root.bind_all("<Button-4>", hide_tabs, add="+")
+		root.bind_all("<Button-5>", hide_tabs, add="+")
+	else:
+		hide_tabs = root._tab_scroll_hide
+		state = root._tab_scroll_state
+
+	if tabview not in state["tabviews"]:
+		state["tabviews"].append(tabview)
