@@ -60,6 +60,82 @@ def authenticate(username: str, password: str, role: str = "admin") -> bool:
 	return row is not None and verify_password(password, row[0])
 
 
+def authenticate_application_user(
+	username: str,
+	password: str,
+	role: str,
+) -> tuple[str, int | None] | None:
+	if role not in {"admin", "counter"}:
+		raise ValueError("Unsupported user role")
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute(
+				"""
+				SELECT u.password_hash, u.role, c.counter_number
+				FROM users AS u
+				LEFT JOIN counters AS c
+					ON c.user_id = u.id AND c.active = TRUE
+				WHERE u.username = %s AND u.role = %s
+				""",
+				(username, role),
+			)
+			row = cursor.fetchone()
+	if row is None or not verify_password(password, row[0]):
+		return None
+	if row[1] == "counter" and row[2] is None:
+		return None
+	return row[1], row[2]
+
+
+def get_kiosk_login_username() -> str | None:
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute("SELECT username FROM kiosk_credentials WHERE id = 1")
+			row = cursor.fetchone()
+	return row[0] if row is not None else None
+
+
+def configure_kiosk_login(username: str, password: str) -> None:
+	username = username.strip()
+	if not username or not password:
+		raise ValueError("Kiosk username and password are required")
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute(
+				"""
+				INSERT INTO kiosk_credentials (id, username, password_hash)
+				VALUES (1, %s, %s)
+				ON CONFLICT (id) DO UPDATE
+				SET username = EXCLUDED.username,
+					password_hash = EXCLUDED.password_hash
+				""",
+				(username, hash_password(password)),
+			)
+
+
+def authenticate_kiosk_user(username: str, password: str) -> bool:
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute(
+				"SELECT password_hash FROM kiosk_credentials WHERE id = 1 AND username = %s",
+				(username.strip(),),
+			)
+			row = cursor.fetchone()
+	if row is None:
+		return False
+	return verify_password(password, row[0])
+
+
+def authenticate_admin_password(password: str) -> bool:
+	if not password:
+		return False
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute("SELECT password_hash FROM users WHERE role = 'admin'")
+			rows = cursor.fetchall()
+	return any(verify_password(password, row[0]) for row in rows)
+
+
 def create_counter_account(
 	name: str,
 	prefix: str,
@@ -80,6 +156,10 @@ def create_counter_account(
 				(username, hash_password(password)),
 			)
 			user_id = cursor.fetchone()[0]
+			cursor.execute(
+				"INSERT INTO counter_passwords (user_id, password) VALUES (%s, %s)",
+				(user_id, password),
+			)
 			cursor.execute(
 				"INSERT INTO counters (name, prefix, user_id) VALUES (%s, %s, %s) RETURNING counter_number",
 				(name, prefix, user_id),
@@ -103,11 +183,50 @@ def get_counters(active_only: bool = True) -> list[tuple[int, str, str, str]]:
 			return cursor.fetchall()
 
 
+def get_counter_password_map() -> list[tuple[int, str, str, str | None]]:
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute(
+				"""
+				SELECT c.counter_number, c.name, u.username, cp.password
+				FROM counters AS c
+				JOIN users AS u ON u.id = c.user_id
+				LEFT JOIN counter_passwords AS cp ON cp.user_id = u.id
+				ORDER BY c.counter_number
+				"""
+			)
+			return cursor.fetchall()
+
+
+def delete_counter_account(counter_number: int) -> bool:
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute(
+				"""
+				SELECT u.id
+				FROM users AS u
+				JOIN counters AS c ON c.user_id = u.id
+				WHERE c.counter_number = %s AND u.role = 'counter'
+				FOR UPDATE OF u, c
+				""",
+				(counter_number,),
+			)
+			row = cursor.fetchone()
+			if row is None:
+				return False
+			cursor.execute(
+				"UPDATE concerns SET active = FALSE WHERE counter_number = %s",
+				(counter_number,),
+			)
+			cursor.execute("DELETE FROM users WHERE id = %s", (row[0],))
+			return cursor.rowcount == 1
+
+
 def delete_all_application_data() -> None:
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
 			cursor.execute(
-				"TRUNCATE TABLE users, counters, concerns, faqs, tickets, ticket_sequences RESTART IDENTITY CASCADE"
+				"TRUNCATE TABLE users, counters, concerns, faqs, tickets, ticket_sequences, kiosk_credentials RESTART IDENTITY CASCADE"
 			)
 
 
@@ -123,7 +242,7 @@ def delete_user(username: str, password: str) -> bool:
 				return False
 			if row[1] == "admin":
 				cursor.execute(
-					"TRUNCATE TABLE users, counters, concerns, faqs, tickets, ticket_sequences RESTART IDENTITY CASCADE"
+					"TRUNCATE TABLE users, counters, concerns, faqs, tickets, ticket_sequences, kiosk_credentials RESTART IDENTITY CASCADE"
 				)
 			else:
 				cursor.execute("DELETE FROM users WHERE username = %s", (username,))

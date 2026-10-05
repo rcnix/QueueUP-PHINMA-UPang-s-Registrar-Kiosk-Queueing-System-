@@ -1,5 +1,6 @@
 import psycopg2
 
+from assets import format_counter_label
 from database.queries import get_counters, get_faqs
 
 
@@ -11,7 +12,7 @@ class CounterSelectionMixin:
 			self.status.set(f"Could not load counters: {error}")
 			counters = []
 		self.counter_numbers = {
-			f"COUNTER {number} - {name}": number
+			format_counter_label(number, name): number
 			for number, name, _prefix, _username in counters
 		}
 		values = list(self.counter_numbers) or ["No counters available"]
