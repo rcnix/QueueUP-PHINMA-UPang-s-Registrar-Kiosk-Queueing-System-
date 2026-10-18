@@ -4,23 +4,34 @@ import tkinter.messagebox as messagebox
 import customtkinter as ctk
 import psycopg2
 
-from admin.styles import FONT_FAMILY, GREEN, INK, PALE_GREEN
-from assets import center_window, set_window_icon
-from database.queries import ensure_schema, get_queue_snapshot
+from admin.styles import (
+	BORDER,
+	FONT_FAMILY,
+	GREEN,
+	INK,
+	MUTED_GREEN,
+	PALE_GREEN,
+	SURFACE,
+)
+from assets import (
+	center_window,
+	format_counter_label,
+	layout_responsive_grid,
+	set_window_icon,
+)
+from database.queries import ensure_schema, get_counters, get_queue_snapshot
 
 
 
 
 class MainFrame(ctk.CTkFrame):
-	COUNTER_COUNT = 6
-
 	def __init__(self, parent):
 		super().__init__(parent, corner_radius=0, fg_color=PALE_GREEN)
 		self.root = self.winfo_toplevel()
 		self.pack(fill="both", expand=True)
-		self.current_tickets = [
-			tk.StringVar(value="--") for _ in range(self.COUNTER_COUNT)
-		]
+		self.counter_definitions: list[tuple[int, str]] = []
+		self.counter_panels: list[ctk.CTkFrame] = []
+		self.current_tickets: dict[int, tk.StringVar] = {}
 		self.status = tk.StringVar(value="Live counter activity is being updated in real time.")
 		self._refresh_job = None
 		self._build_dashboard()
@@ -48,14 +59,13 @@ class MainFrame(ctk.CTkFrame):
 			anchor="center",
 		).grid(row=1, column=0, columnspan=2, pady=(2, 0), sticky="ew")
 
-		counter_grid = ctk.CTkFrame(self, fg_color="transparent")
+		counter_grid = ctk.CTkScrollableFrame(self, fg_color="transparent")
 		counter_grid.grid(row=1, column=0, padx=16, pady=6, sticky="nsew")
-		for row in range(2):
-			counter_grid.grid_rowconfigure(row, weight=1, uniform="counter-row")
-		for column in range(3):
-			counter_grid.grid_columnconfigure(column, weight=1, uniform="counter-column")
-		for index in range(self.COUNTER_COUNT):
-			self._build_counter_panel(counter_grid, index)
+		self.counter_grid = counter_grid
+		counter_grid.bind(
+			"<Configure>", self._layout_counter_panels, add="+"
+		)
+		self._render_counter_panels([])
 
 		ctk.CTkLabel(
 			self,
@@ -65,26 +75,61 @@ class MainFrame(ctk.CTkFrame):
 			anchor="center",
 		).grid(row=2, column=0, padx=24, pady=(6, 16), sticky="ew")
 
-	def _build_counter_panel(self, parent, index: int) -> None:
+	def _render_counter_panels(self, counters: list[tuple[int, str, str, str]]) -> None:
+		for child in self.counter_grid.winfo_children():
+			child.destroy()
+		self.counter_panels = []
+		self.counter_grid._responsive_grid_columns = 0
+		self.counter_definitions = [
+			(number, name) for number, name, _prefix, _username in counters
+		]
+		self.current_tickets = {
+			number: tk.StringVar(value="--") for number, _name in self.counter_definitions
+		}
+		if not self.counter_definitions:
+			ctk.CTkLabel(
+				self.counter_grid,
+				text="No counter windows are currently active.",
+			).grid(row=0, column=0, padx=12, pady=12, sticky="w")
+			return
+		for counter_number, counter_name in self.counter_definitions:
+			self._build_counter_panel(
+				self.counter_grid, counter_number, counter_name
+			)
+		self._layout_counter_panels()
+
+	def _layout_counter_panels(self, _event=None) -> None:
+		if not self.counter_panels:
+			return
+		width = self.counter_grid._parent_frame.winfo_width()
+		if width <= 1:
+			return
+		layout_responsive_grid(
+			self.counter_grid,
+			self.counter_panels,
+			width,
+			minimum_item_width=300,
+		)
+
+	def _build_counter_panel(
+		self,
+		parent,
+		counter_number: int,
+		counter_name: str,
+	) -> None:
 		panel = ctk.CTkFrame(
 			parent,
-			fg_color="#F7FBF6",
+			fg_color=SURFACE,
 			border_width=1,
-			border_color="#BCD5BE",
+			border_color=BORDER,
 			corner_radius=8,
 		)
-		panel.grid(
-			row=index // 3,
-			column=index % 3,
-			padx=10,
-			pady=10,
-			sticky="nsew",
-		)
+		self.counter_panels.append(panel)
 		panel.grid_columnconfigure(0, weight=1)
 		panel.grid_rowconfigure(2, weight=1)
 		ctk.CTkLabel(
 			panel,
-			text=f"COUNTER {index + 1}",
+			text=format_counter_label(counter_number, counter_name),
 			font=ctk.CTkFont(family=FONT_FAMILY, size=22, weight="bold"),
 			text_color=GREEN,
 		).grid(row=0, column=0, padx=12, pady=(16, 2))
@@ -92,20 +137,27 @@ class MainFrame(ctk.CTkFrame):
 			panel,
 			text="NOW SERVING",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"),
-			text_color="#52765A",
+			text_color=MUTED_GREEN,
 		).grid(row=1, column=0, padx=12, pady=(4, 0))
 		ctk.CTkLabel(
 			panel,
-			textvariable=self.current_tickets[index],
+			textvariable=self.current_tickets[counter_number],
 			font=ctk.CTkFont(family=FONT_FAMILY, size=44, weight="bold"),
 			text_color=INK,
 		).grid(row=2, column=0, padx=12, pady=(0, 18), sticky="nsew")
 
 	def _refresh_queues(self) -> None:
 		try:
+			counters = get_counters()
+			definitions = [
+				(number, name) for number, name, _prefix, _username in counters
+			]
+			if definitions != self.counter_definitions:
+				self._render_counter_panels(counters)
 			snapshot = get_queue_snapshot()
 			for counter_number, (serving, _waiting) in snapshot.items():
-				self.current_tickets[counter_number - 1].set(serving or "--")
+				if counter_number in self.current_tickets:
+					self.current_tickets[counter_number].set(serving or "--")
 			self.status.set("Live counter activity is being updated in real time.")
 		except psycopg2.Error as error:
 			self.status.set(f"Could not refresh counters: {error}")

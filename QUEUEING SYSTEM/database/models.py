@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from datetime import datetime
 
 
+MAX_COUNTERS = 100
+
+
 @dataclass(frozen=True)
 class Ticket:
 	id: int
@@ -34,7 +37,20 @@ SCHEMA_STATEMENTS = (
 	"ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'admin'",
 	"ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check",
 	"ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'counter'))",
+	"ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT",
+	"CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users (lower(email)) WHERE email IS NOT NULL",
 	"CREATE UNIQUE INDEX IF NOT EXISTS users_single_admin ON users (role) WHERE role = 'admin'",
+	"""
+	CREATE TABLE IF NOT EXISTS admin_email_codes (
+		email TEXT NOT NULL,
+		purpose TEXT NOT NULL CHECK (purpose IN ('signup', 'recovery', 'email_update')),
+		code_hash TEXT NOT NULL,
+		expires_at TIMESTAMPTZ NOT NULL,
+		sent_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		attempts SMALLINT NOT NULL DEFAULT 0 CHECK (attempts BETWEEN 0 AND 5),
+		PRIMARY KEY (email, purpose)
+	)
+	""",
 	"""
 	CREATE TABLE IF NOT EXISTS kiosk_credentials (
 		id SMALLINT PRIMARY KEY CHECK (id = 1),
@@ -58,11 +74,13 @@ SCHEMA_STATEMENTS = (
 		created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 	)
 	""",
+	"ALTER TABLE counters DROP CONSTRAINT IF EXISTS counters_counter_number_check",
+	"ALTER TABLE counters ADD CONSTRAINT counters_counter_number_check CHECK (counter_number BETWEEN 1 AND 100)",
 	"""
 	CREATE TABLE IF NOT EXISTS concerns (
 		id BIGSERIAL PRIMARY KEY,
 		name TEXT NOT NULL UNIQUE,
-		counter_number INTEGER NOT NULL CHECK (counter_number > 0),
+		counter_number INTEGER NOT NULL CHECK (counter_number BETWEEN 1 AND 100),
 		active BOOLEAN NOT NULL DEFAULT TRUE,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 	)
@@ -71,13 +89,13 @@ SCHEMA_STATEMENTS = (
 	"ALTER TABLE concerns DROP CONSTRAINT IF EXISTS concerns_prefix_key",
 	"ALTER TABLE concerns DROP COLUMN IF EXISTS prefix",
 	"ALTER TABLE concerns DROP CONSTRAINT IF EXISTS concerns_counter_number_check",
-	"ALTER TABLE concerns ADD CONSTRAINT concerns_counter_number_check CHECK (counter_number > 0)",
+	"ALTER TABLE concerns ADD CONSTRAINT concerns_counter_number_check CHECK (counter_number BETWEEN 1 AND 100)",
 	"CREATE UNIQUE INDEX IF NOT EXISTS concerns_active_name_unique ON concerns (name) WHERE active = TRUE",
 	"DROP INDEX IF EXISTS concerns_active_prefix_unique",
 	"""
 	CREATE TABLE IF NOT EXISTS faqs (
 		id BIGSERIAL PRIMARY KEY,
-		counter_number INTEGER CHECK (counter_number > 0),
+		counter_number INTEGER CHECK (counter_number BETWEEN 1 AND 100),
 		concern_id BIGINT REFERENCES concerns(id) ON DELETE CASCADE,
 		question TEXT NOT NULL CHECK (length(trim(question)) > 0),
 		answer TEXT NOT NULL CHECK (length(trim(answer)) > 0),
@@ -85,14 +103,14 @@ SCHEMA_STATEMENTS = (
 	)
 	""",
 	"ALTER TABLE faqs DROP CONSTRAINT IF EXISTS faqs_counter_number_check",
-	"ALTER TABLE faqs ADD CONSTRAINT faqs_counter_number_check CHECK (counter_number IS NULL OR counter_number > 0)",
+	"ALTER TABLE faqs ADD CONSTRAINT faqs_counter_number_check CHECK (counter_number IS NULL OR counter_number BETWEEN 1 AND 100)",
 	"CREATE INDEX IF NOT EXISTS faqs_by_concern ON faqs (concern_id, id)",
 	"CREATE INDEX IF NOT EXISTS faqs_by_counter ON faqs (counter_number, id)",
 	"""
 	CREATE TABLE IF NOT EXISTS tickets (
 		id BIGSERIAL PRIMARY KEY,
 		ticket_number TEXT NOT NULL,
-		counter_number INTEGER NOT NULL CHECK (counter_number > 0),
+		counter_number INTEGER NOT NULL CHECK (counter_number BETWEEN 1 AND 100),
 		status TEXT NOT NULL DEFAULT 'waiting'
 			CHECK (status IN ('waiting', 'serving', 'completed', 'cancelled')),
 		concern_id BIGINT REFERENCES concerns(id),
@@ -103,7 +121,7 @@ SCHEMA_STATEMENTS = (
 	)
 	""",
 	"ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_counter_number_check",
-	"ALTER TABLE tickets ADD CONSTRAINT tickets_counter_number_check CHECK (counter_number > 0)",
+	"ALTER TABLE tickets ADD CONSTRAINT tickets_counter_number_check CHECK (counter_number BETWEEN 1 AND 100)",
 	"""
 	CREATE TABLE IF NOT EXISTS ticket_sequences (
 		prefix TEXT PRIMARY KEY,

@@ -2,6 +2,7 @@ import tkinter.messagebox as messagebox
 
 import psycopg2
 
+from assets import format_counter_label
 from database.queries import issue_ticket
 from printer.receipt_printer import print_receipt
 
@@ -17,14 +18,27 @@ class TicketWorkflowMixin:
 			messagebox.showwarning("No Service Available", "There is no active concern for this counter!", parent=self)
 			return
 		try:
-			ticket_number, counter_number, concern_name = issue_ticket(concern_id, recipient_name)
+			(
+				ticket_number,
+				counter_number,
+				concern_name,
+				counter_name,
+			) = issue_ticket(concern_id, recipient_name)
 		except (psycopg2.Error, ValueError) as error:
 			messagebox.showerror("Ticket error", str(error), parent=self)
 			return
-		self.ticket_details = (ticket_number, concern_name, counter_number)
+		self.ticket_details = (
+			ticket_number,
+			concern_name,
+			counter_number,
+			counter_name,
+		)
 		self.ticket_label.configure(text=ticket_number)
 		self.ticket_info.configure(
-			text=f"{recipient_name}  |  {concern_name}  |  Proceed to COUNTER {counter_number}"
+			text=(
+				f"{recipient_name}  |  {concern_name}  |  Proceed to "
+				f"{format_counter_label(counter_number, counter_name)}"
+			)
 		)
 		self.print_button.configure(state="disabled")
 		self._show_page("ticket")

@@ -5,19 +5,31 @@ import customtkinter as ctk
 import psycopg2
 
 from assets import format_counter_label
-from admin.styles import FONT_FAMILY, GREEN, GREEN_HOVER, INK
+from admin.styles import (
+	ADMIN_CANVAS,
+	BORDER,
+	FONT_FAMILY,
+	GREEN,
+	GREEN_HOVER,
+	INK,
+	MUTED_TEXT,
+	SOFT_BORDER,
+	SOFT_GREEN,
+	SURFACE,
+)
+from admin.validation import set_field_error
 from database.queries import add_concern, delete_concern, get_concern_stats, get_concerns, get_counters
 
 
 class ConcernManagementMixin:
 	def _build_concerns_tab(self, tab) -> None:
 		tab.grid_columnconfigure(0, weight=1)
-		tab.grid_rowconfigure(3, weight=1)
+		tab.grid_rowconfigure(2, weight=1)
 		form = ctk.CTkFrame(
 			tab,
-			fg_color="#F7FBF6",
+			fg_color=SURFACE,
 			border_width=1,
-			border_color="#BCD5BE",
+			border_color=BORDER,
 			corner_radius=8,
 		)
 		form.grid(row=0, column=0, padx=12, pady=12, sticky="ew")
@@ -25,23 +37,44 @@ class ConcernManagementMixin:
 		ctk.CTkLabel(
 			form,
 			text="ADD A SERVICE CONCERN",
-			font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
+			font=ctk.CTkFont(family=FONT_FAMILY, size=17, weight="bold"),
 			text_color=GREEN,
 			anchor="w",
 		).grid(row=0, column=0, columnspan=2, padx=16, pady=(14, 8), sticky="ew")
+		ctk.CTkLabel(
+			form,
+			text=(
+				"Offer a kiosk service, route it to a counter, and retain its ticket history "
+				"when it is removed."
+			),
+			font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+			text_color=MUTED_TEXT,
+			anchor="w",
+			wraplength=900,
+			justify="left",
+		).grid(row=1, column=0, columnspan=2, padx=16, pady=(0, 8), sticky="ew")
 		ctk.CTkLabel(
 			form,
 			text="Concern Name",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
 			text_color=INK,
 			anchor="w",
-		).grid(row=1, column=0, padx=16, pady=(4, 2), sticky="ew")
+		).grid(row=2, column=0, padx=16, pady=(4, 2), sticky="ew")
 		self.concern_name = ctk.CTkEntry(
 			form,
+			height=34,
 			placeholder_text="e.g. Transcript Request",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
 		)
-		self.concern_name.grid(row=2, column=0, padx=16, pady=(0, 10), sticky="ew")
+		self.concern_name.grid(row=3, column=0, padx=16, pady=(0, 10), sticky="ew")
+		self.concern_name_error = ctk.CTkLabel(
+			form,
+			text="",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=10),
+			text_color="#A64C42",
+			anchor="w",
+		)
+		self.concern_name_error.grid(row=4, column=0, padx=16, sticky="ew")
 		self.concern_counter = ctk.StringVar(value="Create a counter first")
 		ctk.CTkLabel(
 			form,
@@ -49,52 +82,49 @@ class ConcernManagementMixin:
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
 			text_color=INK,
 			anchor="w",
-		).grid(row=1, column=1, padx=16, pady=(4, 2), sticky="ew")
+		).grid(row=2, column=1, padx=16, pady=(4, 2), sticky="ew")
 		self.concern_counter_numbers: dict[str, int] = {}
 		self.concern_counter_names: dict[int, str] = {}
 		self.concern_counter_menu = ctk.CTkOptionMenu(
 			form,
 			variable=self.concern_counter,
 			values=["Create a counter first"],
+			height=34,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
 			fg_color=GREEN,
 			button_color=GREEN_HOVER,
 			button_hover_color=INK,
 		)
-		self.concern_counter_menu.grid(row=2, column=1, padx=16, pady=(0, 10), sticky="ew")
+		self.concern_counter_menu.grid(row=3, column=1, padx=16, pady=(0, 10), sticky="ew")
+		self.concern_counter_error = ctk.CTkLabel(
+			form,
+			text="",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=10),
+			text_color="#A64C42",
+			anchor="w",
+		)
+		self.concern_counter_error.grid(row=4, column=1, padx=16, sticky="ew")
 		self.concern_add_button = ctk.CTkButton(
 			form,
 			text="Add Concern to Kiosk",
 			command=self._add_concern,
+			height=36,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
 			fg_color=GREEN,
 			hover_color=GREEN_HOVER,
 		)
 		self.concern_add_button.grid(
-			row=3, column=0, columnspan=2, padx=16, pady=(0, 14), sticky="ew"
+			row=5, column=0, columnspan=2, padx=16, pady=(0, 14), sticky="ew"
 		)
-		ctk.CTkLabel(
-			tab,
-			text=(
-				"A concern is a service offered at the kiosk. It routes the request to its assigned counter; "
-				"tickets use that counter's fixed prefix. Choosing a concern does not create a ticket; submitting at the kiosk does.\n"
-				"Delete a concern to remove it from new kiosk requests. If tickets already use it, its history is retained."
-			),
-			font=ctk.CTkFont(family=FONT_FAMILY, size=11),
-			text_color=INK,
-			justify="left",
-			wraplength=850,
-			anchor="w",
-		).grid(row=1, column=0, padx=16, pady=(0, 10), sticky="ew")
 		service_controls = ctk.CTkFrame(tab, fg_color="transparent")
-		service_controls.grid(row=2, column=0, padx=12, pady=(0, 3), sticky="ew")
+		service_controls.grid(row=1, column=0, padx=12, pady=(0, 5), sticky="ew")
 		service_controls.grid_columnconfigure(0, weight=1)
 		ctk.CTkLabel(
 			service_controls,
 			text="SERVICES AND TICKET VOLUME",
-			font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
-			text_color=GREEN,
-		).grid(row=0, column=0, sticky="w")
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+			text_color=INK,
+		).grid(row=0, column=0, padx=12, pady=8, sticky="w")
 		self.concern_counter_filter = tk.StringVar(value="ALL COUNTERS")
 		self.concern_counter_filter_menu = ctk.CTkOptionMenu(
 			service_controls,
@@ -102,14 +132,22 @@ class ConcernManagementMixin:
 			values=["ALL COUNTERS"],
 			command=lambda _value: self._refresh_concerns(),
 			width=150,
+			height=34,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=11),
 			fg_color=GREEN,
 			button_color=GREEN_HOVER,
 			button_hover_color=INK,
 		)
-		self.concern_counter_filter_menu.grid(row=0, column=1, sticky="e")
-		self.concern_list = ctk.CTkScrollableFrame(tab)
-		self.concern_list.grid(row=3, column=0, padx=10, pady=8, sticky="nsew")
+		self.concern_counter_filter_menu.grid(row=0, column=1, padx=10, pady=5, sticky="e")
+		self.concern_list = ctk.CTkScrollableFrame(
+			tab,
+			height=120,
+			fg_color=ADMIN_CANVAS,
+			border_width=1,
+			border_color=SOFT_BORDER,
+			corner_radius=8,
+		)
+		self.concern_list.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="nsew")
 		self.concern_list.grid_columnconfigure(0, weight=1)
 		self._refresh_concern_counter_options()
 
@@ -142,6 +180,8 @@ class ConcernManagementMixin:
 			self.concern_counter_filter.set("ALL COUNTERS")
 
 	def _add_concern(self) -> None:
+		if not self._validate_concern_form():
+			return
 		try:
 			self._refresh_concern_counter_options()
 			name = self.concern_name.get().strip()
@@ -172,6 +212,25 @@ class ConcernManagementMixin:
 		except (psycopg2.Error, ValueError) as error:
 			messagebox.showerror("Concern error", str(error), parent=self)
 
+	def _validate_concern_form(self, show_required: bool = True) -> bool:
+		name_message = (
+			"Concern name is required."
+			if show_required and not self.concern_name.get().strip()
+			else ""
+		)
+		set_field_error(self.concern_name, self.concern_name_error, name_message)
+		counter_number = self.concern_counter_numbers.get(self.concern_counter.get())
+		counter_message = (
+			"Choose an active counter."
+			if show_required and counter_number is None
+			else ""
+		)
+		self.concern_counter_error.configure(
+			text=counter_message,
+			text_color="#A64C42" if counter_message else MUTED_TEXT,
+		)
+		return not (name_message or counter_message)
+
 	def _refresh_concerns(self) -> None:
 		try:
 			self._refresh_concern_counter_options()
@@ -190,9 +249,9 @@ class ConcernManagementMixin:
 					continue
 				card = ctk.CTkFrame(
 					self.concern_list,
-					fg_color="#F7FBF6",
+					fg_color=SURFACE,
 					border_width=1,
-					border_color="#D8E8D9",
+					border_color=SOFT_BORDER,
 					corner_radius=6,
 				)
 				card.grid(row=row, column=0, columnspan=2, padx=5, pady=4, sticky="ew")
@@ -222,13 +281,34 @@ class ConcernManagementMixin:
 					text="Delete" if active else "Removed",
 					width=90,
 					font=ctk.CTkFont(family=FONT_FAMILY, size=11),
-					fg_color="#A64C42" if active else "#DDEBDD",
-					hover_color="#873C34" if active else "#DDEBDD",
+					fg_color="#A64C42" if active else SOFT_GREEN,
+					hover_color="#873C34" if active else SOFT_GREEN,
 					text_color="white" if active else INK,
 					state="normal" if active else "disabled",
 					command=lambda key=concern_id, label=name: self._delete_concern(key, label),
 				).grid(row=0, column=1, rowspan=2, padx=10, pady=8)
 				row += 1
+			if row == 0:
+				empty_message = (
+					"No service concerns are assigned to this counter."
+					if selected_counter is not None
+					else "No service concerns yet. Add one above to offer services at the kiosk."
+				)
+				empty_state = ctk.CTkFrame(
+					self.concern_list,
+					fg_color=SURFACE,
+					border_width=1,
+					border_color=SOFT_BORDER,
+					corner_radius=6,
+				)
+				empty_state.grid(row=0, column=0, padx=5, pady=8, sticky="ew")
+				ctk.CTkLabel(
+					empty_state,
+					text=empty_message,
+					font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+					text_color=INK,
+					anchor="w",
+				).pack(fill="x", padx=14, pady=14)
 		except psycopg2.Error as error:
 			self.status.set(f"Could not load concerns: {error}")
 

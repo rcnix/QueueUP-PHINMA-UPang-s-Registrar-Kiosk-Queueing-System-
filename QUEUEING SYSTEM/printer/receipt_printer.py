@@ -1,8 +1,15 @@
 from datetime import datetime
 import platform
 
+from assets import format_counter_label
 
-def print_receipt(ticket_number: str, concern_name: str, counter_number: int) -> None:
+
+def print_receipt(
+	ticket_number: str,
+	concern_name: str,
+	counter_number: int,
+	counter_name: str,
+) -> None:
 	if platform.system() != "Windows":
 		raise RuntimeError("Receipt printing is currently configured for Windows.")
 
@@ -29,7 +36,7 @@ def print_receipt(ticket_number: str, concern_name: str, counter_number: int) ->
 			"-----------------------------------------\n"
 			f"Ticket: {ticket_number}\n"
 			f"Concern: {concern_name}\n"
-			f"Proceed to Counter {counter_number}\n"
+			f"Proceed to {format_counter_label(counter_number, counter_name)}\n"
 			f"Issued: {datetime.now():%Y-%m-%d %H:%M}\n"
 			"-----------------------------------------\n\n\n\x1dV\x00"
 			"THANK YOU!\n"

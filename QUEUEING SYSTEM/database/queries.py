@@ -1,10 +1,9 @@
 import re
+import secrets
 from datetime import date, datetime
 
-import psycopg2
-
 from database.connection import get_connection, hash_password, verify_password
-from database.models import SCHEMA_STATEMENTS
+from database.models import MAX_COUNTERS, SCHEMA_STATEMENTS
 
 
 def ensure_schema() -> None:
@@ -49,6 +48,190 @@ def create_first_admin(username: str, password: str) -> None:
 			)
 
 
+def issue_admin_email_code(email: str, purpose: str, current_password: str = "") -> str | None:
+	email = email.strip().casefold()
+	if purpose not in {"signup", "recovery", "email_update"}:
+		raise ValueError("Unsupported email verification request")
+	if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+		raise ValueError("Enter a valid email address")
+
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			if purpose == "signup":
+				cursor.execute("SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin')")
+				if cursor.fetchone()[0]:
+					raise ValueError("An admin account already exists")
+			elif purpose == "recovery":
+				cursor.execute(
+					"SELECT id FROM users WHERE role = 'admin' AND lower(email) = %s",
+					(email,),
+				)
+				if cursor.fetchone() is None:
+					return None
+			else:
+				cursor.execute(
+					"SELECT id, password_hash FROM users WHERE role = 'admin' FOR UPDATE"
+				)
+				admin = cursor.fetchone()
+				if admin is None or not verify_password(current_password, admin[1]):
+					raise ValueError("The current admin password is incorrect")
+
+			cursor.execute(
+				"""
+				SELECT EXISTS (
+					SELECT 1 FROM users
+					WHERE lower(email) = %s AND role <> 'admin'
+				)
+				""",
+				(email,),
+			)
+			if cursor.fetchone()[0]:
+				raise ValueError("This email address is already in use")
+			if purpose == "email_update":
+				cursor.execute(
+					"SELECT email FROM users WHERE role = 'admin' AND lower(email) = %s",
+					(email,),
+				)
+				if cursor.fetchone() is not None:
+					raise ValueError("This email address is already linked to the admin account")
+
+			cursor.execute(
+				"""
+				SELECT sent_at > CURRENT_TIMESTAMP - INTERVAL '60 seconds'
+				FROM admin_email_codes WHERE email = %s AND purpose = %s
+				""",
+				(email, purpose),
+			)
+			row = cursor.fetchone()
+			if row is not None and row[0]:
+				raise ValueError("Wait one minute before requesting another code")
+
+			code = f"{secrets.randbelow(1_000_000):06d}"
+			cursor.execute(
+				"""
+				INSERT INTO admin_email_codes
+					(email, purpose, code_hash, expires_at, sent_at, attempts)
+				VALUES (%s, %s, %s, CURRENT_TIMESTAMP + INTERVAL '5 minutes',
+					CURRENT_TIMESTAMP, 0)
+				ON CONFLICT (email, purpose) DO UPDATE
+				SET code_hash = EXCLUDED.code_hash,
+					expires_at = EXCLUDED.expires_at,
+					sent_at = EXCLUDED.sent_at,
+					attempts = 0
+				""",
+				(email, purpose, hash_password(code)),
+			)
+	return code
+
+
+def revoke_admin_email_code(email: str, purpose: str) -> None:
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute(
+				"DELETE FROM admin_email_codes WHERE email = %s AND purpose = %s",
+				(email.strip().casefold(), purpose),
+			)
+
+
+def _consume_admin_email_code(cursor, email: str, purpose: str, code: str) -> bool:
+	cursor.execute(
+		"""
+		SELECT code_hash, expires_at > CURRENT_TIMESTAMP, attempts
+		FROM admin_email_codes
+		WHERE email = %s AND purpose = %s
+		FOR UPDATE
+		""",
+		(email, purpose),
+	)
+	row = cursor.fetchone()
+	if row is None or not row[1] or row[2] >= 5:
+		return False
+	if not verify_password(code, row[0]):
+		cursor.execute(
+			"UPDATE admin_email_codes SET attempts = attempts + 1 "
+			"WHERE email = %s AND purpose = %s",
+			(email, purpose),
+		)
+		return False
+	cursor.execute(
+		"DELETE FROM admin_email_codes WHERE email = %s AND purpose = %s",
+		(email, purpose),
+	)
+	return True
+
+
+def complete_admin_signup(username: str, email: str, password: str, code: str) -> None:
+	username = username.strip()
+	email = email.strip().casefold()
+	if not username or not password:
+		raise ValueError("Username and password are required")
+	verified = False
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute("SELECT pg_advisory_xact_lock(810024617)")
+			verified = _consume_admin_email_code(cursor, email, "signup", code)
+			if verified:
+				cursor.execute("SELECT EXISTS (SELECT 1 FROM users WHERE role = 'admin')")
+				if cursor.fetchone()[0]:
+					raise ValueError("An admin account already exists")
+				cursor.execute(
+					"""
+					INSERT INTO users (username, email, password_hash, role)
+					VALUES (%s, %s, %s, 'admin')
+					""",
+					(username, email, hash_password(password)),
+				)
+	if not verified:
+		raise ValueError("The code is invalid, expired, or has reached its attempt limit")
+
+
+def complete_admin_recovery(email: str, code: str, new_password: str) -> str | None:
+	email = email.strip().casefold()
+	if not new_password:
+		raise ValueError("A new password is required")
+	username = None
+	verified = False
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			verified = _consume_admin_email_code(cursor, email, "recovery", code)
+			if verified:
+				cursor.execute(
+					"""
+					UPDATE users SET password_hash = %s
+					WHERE role = 'admin' AND lower(email) = %s
+					RETURNING username
+					""",
+					(hash_password(new_password), email),
+				)
+				row = cursor.fetchone()
+				username = row[0] if row is not None else None
+	if not verified:
+		raise ValueError("The code is invalid, expired, or has reached its attempt limit")
+	if username is None:
+		raise ValueError("The admin account could not be recovered")
+	return username
+
+
+def complete_admin_email_update(email: str, code: str, current_password: str) -> None:
+	email = email.strip().casefold()
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute(
+				"SELECT id, password_hash FROM users WHERE role = 'admin' FOR UPDATE"
+			)
+			admin = cursor.fetchone()
+			if admin is None or not verify_password(current_password, admin[1]):
+				raise ValueError("The current admin password is incorrect")
+			verified = _consume_admin_email_code(cursor, email, "email_update", code)
+			if verified:
+				cursor.execute(
+					"UPDATE users SET email = %s WHERE id = %s",
+					(email, admin[0]),
+				)
+	if not verified:
+		raise ValueError("The code is invalid, expired, or has reached its attempt limit")
+
+
 def authenticate(username: str, password: str, role: str = "admin") -> bool:
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
@@ -64,27 +247,29 @@ def authenticate_application_user(
 	username: str,
 	password: str,
 	role: str,
-) -> tuple[str, int | None] | None:
+) -> tuple[str, int | None, str | None] | None:
 	if role not in {"admin", "counter"}:
 		raise ValueError("Unsupported user role")
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
 			cursor.execute(
 				"""
-				SELECT u.password_hash, u.role, c.counter_number
+				SELECT u.password_hash, u.role, c.counter_number, c.name
 				FROM users AS u
 				LEFT JOIN counters AS c
 					ON c.user_id = u.id AND c.active = TRUE
-				WHERE u.username = %s AND u.role = %s
+				WHERE (u.username = %s OR
+					(u.role = 'admin' AND lower(u.email) = lower(%s)))
+					AND u.role = %s
 				""",
-				(username, role),
+				(username, username, role),
 			)
 			row = cursor.fetchone()
 	if row is None or not verify_password(password, row[0]):
 		return None
 	if row[1] == "counter" and row[2] is None:
 		return None
-	return row[1], row[2]
+	return row[1], row[2], row[3]
 
 
 def get_kiosk_login_username() -> str | None:
@@ -141,6 +326,7 @@ def create_counter_account(
 	prefix: str,
 	username: str,
 	password: str,
+	counter_number: int,
 ) -> int:
 	name = name.strip()
 	prefix = prefix.strip().upper()
@@ -149,8 +335,21 @@ def create_counter_account(
 		raise ValueError("Counter name, username, and password are required")
 	if not re.fullmatch(r"[A-Z0-9]{1,6}", prefix):
 		raise ValueError("Prefix must be 1-6 letters or numbers")
+	if not 1 <= counter_number <= MAX_COUNTERS:
+		raise ValueError(f"Counter number must be between 1 and {MAX_COUNTERS}")
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
+			cursor.execute("SELECT pg_advisory_xact_lock(810024618)")
+			cursor.execute(
+				"""
+				SELECT EXISTS (
+					SELECT 1 FROM counters WHERE counter_number = %s
+				)
+				""",
+				(counter_number,),
+			)
+			if cursor.fetchone()[0]:
+				raise ValueError(f"Counter {counter_number} is already in use")
 			cursor.execute(
 				"INSERT INTO users (username, password_hash, role) VALUES (%s, %s, 'counter') RETURNING id",
 				(username, hash_password(password)),
@@ -161,10 +360,13 @@ def create_counter_account(
 				(user_id, password),
 			)
 			cursor.execute(
-				"INSERT INTO counters (name, prefix, user_id) VALUES (%s, %s, %s) RETURNING counter_number",
-				(name, prefix, user_id),
+				"""
+				INSERT INTO counters (counter_number, name, prefix, user_id)
+				VALUES (%s, %s, %s, %s)
+				""",
+				(counter_number, name, prefix, user_id),
 			)
-			return cursor.fetchone()[0]
+			return counter_number
 
 
 def get_counters(active_only: bool = True) -> list[tuple[int, str, str, str]]:
@@ -198,7 +400,22 @@ def get_counter_password_map() -> list[tuple[int, str, str, str | None]]:
 			return cursor.fetchall()
 
 
-def delete_counter_account(counter_number: int) -> bool:
+def update_counter_account(
+	counter_number: int,
+	name: str,
+	prefix: str,
+	username: str,
+	password: str | None = None,
+) -> bool:
+	name = name.strip()
+	prefix = prefix.strip().upper()
+	username = username.strip()
+	if not name or not username:
+		raise ValueError("Counter name and username are required")
+	if not re.fullmatch(r"[A-Z0-9]{1,6}", prefix):
+		raise ValueError("Prefix must be 1-6 letters or numbers")
+	if password is not None and len(password) < 8:
+		raise ValueError("Counter passwords must contain at least 8 characters")
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
 			cursor.execute(
@@ -214,8 +431,63 @@ def delete_counter_account(counter_number: int) -> bool:
 			row = cursor.fetchone()
 			if row is None:
 				return False
+			user_id = row[0]
+			cursor.execute(
+				"UPDATE counters SET name = %s, prefix = %s WHERE counter_number = %s",
+				(name, prefix, counter_number),
+			)
+			if password is None:
+				cursor.execute(
+					"UPDATE users SET username = %s WHERE id = %s",
+					(username, user_id),
+				)
+			else:
+				cursor.execute(
+					"""
+					UPDATE users
+					SET username = %s, password_hash = %s
+					WHERE id = %s
+					""",
+					(username, hash_password(password), user_id),
+				)
+				cursor.execute(
+					"""
+					INSERT INTO counter_passwords (user_id, password)
+					VALUES (%s, %s)
+					ON CONFLICT (user_id) DO UPDATE SET password = EXCLUDED.password
+					""",
+					(user_id, password),
+				)
+			return True
+
+
+def delete_counter_account(counter_number: int) -> bool:
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute("SELECT pg_advisory_xact_lock(810024618)")
+			cursor.execute(
+				"""
+				SELECT u.id
+				FROM users AS u
+				JOIN counters AS c ON c.user_id = u.id
+				WHERE c.counter_number = %s AND u.role = 'counter'
+				FOR UPDATE OF u, c
+				""",
+				(counter_number,),
+			)
+			row = cursor.fetchone()
+			if row is None:
+				return False
 			cursor.execute(
 				"UPDATE concerns SET active = FALSE WHERE counter_number = %s",
+				(counter_number,),
+			)
+			cursor.execute(
+				"""
+				UPDATE tickets
+				SET status = 'cancelled'
+				WHERE counter_number = %s AND status IN ('waiting', 'serving')
+				""",
 				(counter_number,),
 			)
 			cursor.execute("DELETE FROM users WHERE id = %s", (row[0],))
@@ -407,13 +679,13 @@ def delete_faq(faq_id: int) -> bool:
 def issue_ticket(
 	concern_id: int,
 	recipient_name: str | None = None,
-) -> tuple[str, int, str]:
+) -> tuple[str, int, str, str]:
 	recipient_name = recipient_name.strip() if recipient_name else None
 	with get_connection() as connection:
 		with connection.cursor() as cursor:
 			cursor.execute(
 				"""
-				SELECT counters.prefix, concerns.counter_number, concerns.name
+				SELECT counters.prefix, concerns.counter_number, concerns.name, counters.name
 				FROM concerns
 			JOIN counters USING (counter_number)
 			WHERE concerns.id = %s AND concerns.active = TRUE AND counters.active = TRUE
@@ -425,7 +697,7 @@ def issue_ticket(
 			if concern is None:
 				raise ValueError("That concern is unavailable")
 
-			prefix, counter_number, concern_name = concern
+			prefix, counter_number, concern_name, counter_name = concern
 			cursor.execute(
 				"""
 				INSERT INTO ticket_sequences (prefix, last_number)
@@ -452,7 +724,7 @@ def issue_ticket(
 				""",
 				(ticket_number, counter_number, concern_id, recipient_name),
 			)
-	return ticket_number, counter_number, concern_name
+	return ticket_number, counter_number, concern_name, counter_name
 
 
 def add_ticket(ticket_number: str, counter_number: int) -> None:
@@ -669,8 +941,10 @@ def get_monthly_ticket_counts(
 	conditions = ["created_at >= %s", "created_at < %s"]
 	parameters: list[object] = [first_day, next_month]
 	if counter_number is not None:
-		if not 1 <= counter_number <= 6:
-			raise ValueError("counter_number must be between 1 and 6")
+		if not 1 <= counter_number <= MAX_COUNTERS:
+			raise ValueError(
+				f"counter_number must be between 1 and {MAX_COUNTERS}"
+			)
 		conditions.append("counter_number = %s")
 		parameters.append(counter_number)
 	with get_connection() as connection:

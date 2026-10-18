@@ -6,6 +6,7 @@ import psycopg2
 
 from application import QueueUPApp
 from database.queries import ensure_schema
+from database.models import MAX_COUNTERS
 
 FONT_FAMILY = "Bahnschrift"
 
@@ -22,7 +23,7 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument(
         "--counter",
         type=int,
-        choices=range(1, 7),
+        choices=range(1, MAX_COUNTERS + 1),
         default=1,
         help="counter number for the counter interface",
     )

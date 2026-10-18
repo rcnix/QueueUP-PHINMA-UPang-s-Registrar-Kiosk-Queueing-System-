@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from pathlib import Path
 import tkinter as tk
 
@@ -5,9 +6,66 @@ import tkinter as tk
 LOGO_PATH = Path(__file__).resolve().parent / "icons" / "logo.ico"
 
 
+def responsive_grid_columns(
+	width: int,
+	minimum_item_width: int,
+	max_columns: int = 3,
+) -> int:
+	return max(1, min(max_columns, width // minimum_item_width))
+
+
+def layout_responsive_grid(
+	container: tk.Misc,
+	items: Sequence[tk.Misc],
+	width: int,
+	minimum_item_width: int,
+	padding: int = 10,
+	max_columns: int = 3,
+	expand_rows: bool = False,
+) -> int:
+	columns = responsive_grid_columns(width, minimum_item_width, max_columns)
+	if getattr(container, "_responsive_grid_columns", None) == columns:
+		return columns
+
+	rows = max(1, (len(items) + columns - 1) // columns)
+	previous_columns = getattr(container, "_responsive_grid_max_columns", 0)
+	previous_rows = getattr(container, "_responsive_grid_rows", 0)
+	for column in range(max(max_columns, previous_columns)):
+		active = column < columns
+		container.grid_columnconfigure(
+			column,
+			weight=1 if active else 0,
+			uniform="responsive-grid-column" if active else "",
+		)
+	for row in range(max(rows, previous_rows)):
+		active = row < rows
+		container.grid_rowconfigure(
+			row,
+			weight=1 if expand_rows and active else 0,
+			uniform="responsive-grid-row" if expand_rows and active else "",
+		)
+	for index, item in enumerate(items):
+		item.grid(
+			row=index // columns,
+			column=index % columns,
+			padx=padding,
+			pady=padding,
+			sticky="nsew",
+		)
+
+	container._responsive_grid_columns = columns
+	container._responsive_grid_max_columns = max(max_columns, previous_columns)
+	container._responsive_grid_rows = rows
+	return columns
+
+
 def format_counter_label(number: int, name: str) -> str:
-	counter = f"COUNTER {number}"
-	return counter if name.strip().casefold() == counter.casefold() else f"{counter} - {name}"
+	name = name.strip()
+	if not name:
+		return f"COUNTER {number}"
+	if name.casefold() == f"counter {number}".casefold():
+		return name
+	return f"COUNTER {number} - {name}"
 
 
 def set_window_icon(window) -> None:

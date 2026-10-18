@@ -4,7 +4,17 @@ import calendar as month_calendar
 import customtkinter as ctk
 import psycopg2
 
-from admin.styles import FONT_FAMILY, GREEN, INK
+from admin.styles import (
+	FONT_FAMILY,
+	GREEN,
+	INK,
+	MUTED_GREEN,
+	PALE_BORDER,
+	PALE_GREEN,
+	SELECTED_GREEN,
+	SOFT_BORDER,
+	SURFACE,
+)
 from database.queries import get_daily_transactions, get_monthly_ticket_counts
 
 
@@ -15,7 +25,7 @@ class AdminCalendarMixin:
 
 	def _load_calendar(self) -> None:
 		try:
-			month = self.calendar_month.current() + 1
+			month = self.calendar_month_values.index(self.calendar_month.get()) + 1
 			year = int(self.calendar_year.get())
 			self._calendar_date = date(year, month, 1)
 			counter_number = self._counter_number_from_label(self.calendar_counter.get())
@@ -54,10 +64,10 @@ class AdminCalendarMixin:
 					text=f"{day_number:02d}\n{count} TICKETS",
 					font=ctk.CTkFont(family=FONT_FAMILY, size=10),
 					text_color=INK,
-					fg_color="#E8F3E8" if count else "#F7FBF6",
-					hover_color="#D6E9D7",
+					fg_color=PALE_GREEN if count else SURFACE,
+					hover_color=PALE_GREEN,
 					border_width=1,
-					border_color="#D1E4D2",
+					border_color=PALE_BORDER,
 					corner_radius=5,
 					command=lambda selected=day_date: self._show_day(selected),
 				)
@@ -76,13 +86,13 @@ class AdminCalendarMixin:
 			count = self.calendar_counts.get(day_date, 0) > 0
 			button.configure(
 				fg_color=(
-					"#A9D2AD"
+					SELECTED_GREEN
 					if day_date == selected_date
-					else "#E8F3E8"
+					else PALE_GREEN
 					if count
-					else "#F7FBF6"
+					else SURFACE
 				),
-				border_color=GREEN if day_date == selected_date else "#D1E4D2",
+				border_color=GREEN if day_date == selected_date else PALE_BORDER,
 			)
 		try:
 			counter_number = self._counter_number_from_label(self.calendar_counter.get())
@@ -102,9 +112,9 @@ class AdminCalendarMixin:
 			for ticket, concern, counter, status, recipient, created, _called, _completed in rows:
 				card = ctk.CTkFrame(
 					self.day_transactions,
-					fg_color="#F7FBF6",
+					fg_color=SURFACE,
 					border_width=1,
-					border_color="#D8E8D9",
+					border_color=SOFT_BORDER,
 					corner_radius=5,
 				)
 				card.pack(fill="x", padx=2, pady=3)
@@ -127,17 +137,17 @@ class AdminCalendarMixin:
 					card,
 					text=f"COUNTER {counter}  /  {status.upper()}  /  {created:%H:%M}",
 					font=ctk.CTkFont(family=FONT_FAMILY, size=10),
-					text_color="#52765A",
+					text_color=MUTED_GREEN,
 					anchor="w",
 				).pack(fill="x", padx=10, pady=(0, 7))
 				for widget in (card, *card.winfo_children()):
 					widget.bind(
 						"<Enter>",
-						lambda _event, item=card: item.configure(fg_color="#E8F3E8"),
+						lambda _event, item=card: item.configure(fg_color=PALE_GREEN),
 					)
 					widget.bind(
 						"<Leave>",
-						lambda _event, item=card: item.configure(fg_color="#F7FBF6"),
+						lambda _event, item=card: item.configure(fg_color=SURFACE),
 					)
 		except psycopg2.Error as error:
 			self.status.set(f"Could not load that date: {error}")

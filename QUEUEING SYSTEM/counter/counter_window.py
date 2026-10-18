@@ -4,30 +4,37 @@ import tkinter.messagebox as messagebox
 import customtkinter as ctk
 import psycopg2
 
-from assets import center_window, set_window_icon
-from database.queries import get_queue_snapshot, serve_next
-
-
-FONT_FAMILY = "Bahnschrift"
-GREEN = "#397A45"
-GREEN_HOVER = "#2F6639"
-PALE_GREEN = "#E8F3E8"
-INK = "#183B22"
+from assets import (
+	center_window,
+	format_counter_label,
+	layout_responsive_grid,
+	set_window_icon,
+)
+from admin.styles import (
+	BORDER,
+	FONT_FAMILY,
+	GREEN,
+	GREEN_HOVER,
+	INK,
+	MUTED_GREEN,
+	PALE_GREEN,
+	SOFT_GREEN,
+	SOFT_GREEN_HOVER,
+	SURFACE,
+	SURFACE_ALT,
+)
+from database.queries import get_counters, get_queue_snapshot, serve_next
 
 
 class CounterControls(ctk.CTkFrame):
-	COUNTER_COUNT = 6
-
 	def __init__(self, parent):
 		super().__init__(parent, corner_radius=0, fg_color=PALE_GREEN)
 		self.grid_columnconfigure(0, weight=1)
 		self.grid_rowconfigure(1, weight=1)
-		self.current_tickets = [
-			ctk.StringVar(value="--") for _ in range(self.COUNTER_COUNT)
-		]
-		self.waiting_counts = [
-			ctk.StringVar(value="Waiting: 0") for _ in range(self.COUNTER_COUNT)
-		]
+		self.counter_definitions: list[tuple[int, str]] = []
+		self.counter_panels: list[ctk.CTkFrame] = []
+		self.current_tickets: dict[int, ctk.StringVar] = {}
+		self.waiting_counts: dict[int, ctk.StringVar] = {}
 		self.status = ctk.StringVar(value="Connecting to the queues...")
 		self._refresh_job = None
 		self._build_ui()
@@ -41,14 +48,11 @@ class CounterControls(ctk.CTkFrame):
 			text_color=INK,
 			anchor="center",
 		).grid(row=0, column=0, padx=24, pady=(20, 10), sticky="ew")
-		grid = ctk.CTkFrame(self, fg_color="transparent")
+		grid = ctk.CTkScrollableFrame(self, fg_color="transparent")
 		grid.grid(row=1, column=0, padx=16, pady=4, sticky="nsew")
-		for row in range(2):
-			grid.grid_rowconfigure(row, weight=1, uniform="counter-row")
-		for column in range(3):
-			grid.grid_columnconfigure(column, weight=1, uniform="counter-column")
-		for index in range(self.COUNTER_COUNT):
-			self._build_counter(grid, index)
+		self.counter_grid = grid
+		grid.bind("<Configure>", self._layout_counter_panels, add="+")
+		self._refresh_counter_panels()
 		ctk.CTkLabel(
 			self,
 			textvariable=self.status,
@@ -57,25 +61,74 @@ class CounterControls(ctk.CTkFrame):
 			anchor="center",
 		).grid(row=2, column=0, padx=24, pady=(6, 16), sticky="ew")
 
-	def _build_counter(self, parent, index: int) -> None:
+	def _refresh_counter_panels(self) -> None:
+		try:
+			counters = get_counters()
+		except psycopg2.Error as error:
+			self.status.set(f"Could not load counters: {error}")
+			return
+		definitions = [
+			(number, name) for number, name, _prefix, _username in counters
+		]
+		if (
+			definitions == self.counter_definitions
+			and self.counter_grid.winfo_children()
+		):
+			return
+		for child in self.counter_grid.winfo_children():
+			child.destroy()
+		self.counter_panels = []
+		self.counter_grid._responsive_grid_columns = 0
+		self.counter_definitions = definitions
+		self.current_tickets = {
+			number: ctk.StringVar(value="--") for number, _name in definitions
+		}
+		self.waiting_counts = {
+			number: ctk.StringVar(value="Waiting: 0") for number, _name in definitions
+		}
+		if not definitions:
+			ctk.CTkLabel(
+				self.counter_grid,
+				text="No counter windows are currently active.",
+			).grid(row=0, column=0, padx=12, pady=12, sticky="w")
+			return
+		for counter_number, counter_name in definitions:
+			self._build_counter(
+				self.counter_grid, counter_number, counter_name
+			)
+		self._layout_counter_panels()
+
+	def _layout_counter_panels(self, _event=None) -> None:
+		if not self.counter_panels:
+			return
+		width = self.counter_grid._parent_frame.winfo_width()
+		if width <= 1:
+			return
+		layout_responsive_grid(
+			self.counter_grid,
+			self.counter_panels,
+			width,
+			minimum_item_width=300,
+		)
+
+	def _build_counter(
+		self,
+		parent,
+		counter_number: int,
+		counter_name: str,
+	) -> None:
 		panel = ctk.CTkFrame(
 			parent,
-			fg_color="#F7FBF6",
+			fg_color=SURFACE,
 			border_width=1,
-			border_color="#BCD5BE",
+			border_color=BORDER,
 			corner_radius=8,
 		)
-		panel.grid(
-			row=index // 3,
-			column=index % 3,
-			padx=10,
-			pady=10,
-			sticky="nsew",
-		)
+		self.counter_panels.append(panel)
 		panel.grid_columnconfigure(0, weight=1)
 		ctk.CTkLabel(
 			panel,
-			text=f"COUNTER {index + 1}",
+			text=format_counter_label(counter_number, counter_name),
 			font=ctk.CTkFont(family=FONT_FAMILY, size=20, weight="bold"),
 			text_color=GREEN,
 		).grid(row=0, column=0, padx=12, pady=(16, 4))
@@ -83,17 +136,17 @@ class CounterControls(ctk.CTkFrame):
 			panel,
 			text="NOW SERVING",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
-			text_color="#52765A",
+			text_color=MUTED_GREEN,
 		).grid(row=1, column=0, padx=12, pady=(0, 0))
 		ctk.CTkLabel(
 			panel,
-			textvariable=self.current_tickets[index],
+			textvariable=self.current_tickets[counter_number],
 			font=ctk.CTkFont(family=FONT_FAMILY, size=36, weight="bold"),
 			text_color=INK,
 		).grid(row=2, column=0, padx=12, pady=(0, 2))
 		ctk.CTkLabel(
 			panel,
-			textvariable=self.waiting_counts[index],
+			textvariable=self.waiting_counts[counter_number],
 			font=ctk.CTkFont(family=FONT_FAMILY, size=13),
 			text_color=INK,
 		).grid(row=3, column=0, padx=12, pady=(0, 8))
@@ -104,14 +157,18 @@ class CounterControls(ctk.CTkFrame):
 			font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
 			fg_color=GREEN,
 			hover_color=GREEN_HOVER,
-			command=lambda counter=index + 1: self._serve_next(counter),
+			command=lambda counter=counter_number: self._serve_next(counter),
 		).grid(row=4, column=0, padx=16, pady=(0, 16), sticky="ew")
 
 	def _refresh(self) -> None:
 		try:
+			self._refresh_counter_panels()
 			for counter_number, (serving, waiting) in get_queue_snapshot().items():
-				self.current_tickets[counter_number - 1].set(serving or "--")
-				self.waiting_counts[counter_number - 1].set(f"Waiting: {len(waiting)}")
+				if counter_number in self.current_tickets:
+					self.current_tickets[counter_number].set(serving or "--")
+					self.waiting_counts[counter_number].set(
+						f"Waiting: {len(waiting)}"
+					)
 			self.status.set("Counter status is up to date.")
 		except psycopg2.Error as error:
 			self.status.set(f"Database unavailable: {error}")
@@ -121,10 +178,19 @@ class CounterControls(ctk.CTkFrame):
 	def _serve_next(self, counter_number: int) -> None:
 		try:
 			ticket_number = serve_next(counter_number)
+			counter_name = next(
+				(
+					name
+					for number, name in self.counter_definitions
+					if number == counter_number
+				),
+				"",
+			)
+			counter_label = format_counter_label(counter_number, counter_name)
 			self.status.set(
-				f"{ticket_number} is now serving at COUNTER {counter_number}."
+				f"{ticket_number} is now serving at {counter_label}."
 				if ticket_number
-				else f"No waiting tickets at COUNTER {counter_number}."
+				else f"No waiting tickets at {counter_label}."
 			)
 			self._refresh()
 		except (psycopg2.Error, ValueError) as error:
@@ -140,9 +206,19 @@ class CounterControls(ctk.CTkFrame):
 
 
 class CounterWindow(ctk.CTkFrame):
-	def __init__(self, parent, counter_number: int, on_logout=None):
+	def __init__(
+		self,
+		parent,
+		counter_number: int,
+		counter_name: str | None = None,
+		on_logout=None,
+	):
 		super().__init__(parent, corner_radius=0, fg_color=PALE_GREEN)
 		self.counter_number = counter_number
+		self.counter_name = counter_name or f"Counter {counter_number}"
+		self.winfo_toplevel().title(
+			f"QueueUP - {format_counter_label(counter_number, self.counter_name)}"
+		)
 		self.on_logout = on_logout
 		self.pack(fill="both", expand=True)
 		self.grid_columnconfigure(0, weight=1)
@@ -160,7 +236,7 @@ class CounterWindow(ctk.CTkFrame):
 		header.grid_columnconfigure(0, weight=1)
 		ctk.CTkLabel(
 			header,
-			text=f"COUNTER {self.counter_number}",
+			text=format_counter_label(self.counter_number, self.counter_name),
 			font=ctk.CTkFont(family=FONT_FAMILY, size=32, weight="bold"),
 			text_color=INK,
 		).grid(row=0, column=0, sticky="w")
@@ -171,8 +247,8 @@ class CounterWindow(ctk.CTkFrame):
 				width=100,
 				command=self.on_logout,
 				font=ctk.CTkFont(family=FONT_FAMILY, size=12),
-				fg_color="#DDEBDD",
-				hover_color="#C6DEC7",
+				fg_color=SOFT_GREEN,
+				hover_color=SOFT_GREEN_HOVER,
 				text_color=INK,
 			).grid(row=0, column=1, sticky="e")
 		ctk.CTkLabel(self, text="NOW SERVING", font=ctk.CTkFont(family=FONT_FAMILY, size=20, weight="bold"), text_color=GREEN).grid(
@@ -184,7 +260,12 @@ class CounterWindow(ctk.CTkFrame):
 			font=ctk.CTkFont(family=FONT_FAMILY, size=68, weight="bold"),
 			text_color=INK,
 		).grid(row=2, column=0, padx=20, pady=(0, 8))
-		queue_panel = ctk.CTkFrame(self)
+		queue_panel = ctk.CTkFrame(
+			self,
+			fg_color=SURFACE,
+			border_width=1,
+			border_color=BORDER,
+		)
 		queue_panel.grid(row=3, column=0, padx=32, pady=12, sticky="nsew")
 		queue_panel.grid_columnconfigure(0, weight=1)
 		queue_panel.grid_rowconfigure(1, weight=1)
@@ -196,6 +277,9 @@ class CounterWindow(ctk.CTkFrame):
 		self.queue_text = ctk.CTkTextbox(
 			queue_panel,
 			activate_scrollbars=True,
+			fg_color=SURFACE_ALT,
+			border_color=BORDER,
+			text_color=INK,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
 		)
 		self.queue_text.grid(row=1, column=0, padx=12, pady=(4, 12), sticky="nsew")

@@ -53,6 +53,23 @@ DB_PORT is optional and defaults to 5432.
 
 Create the PostgreSQL database before launching QueueUP.
 
+// ADMIN EMAIL VERIFICATION
+
+Admin signup and account recovery use SMTP. Add these settings to
+`QUEUEING SYSTEM/.env`:
+
+    SMTP_HOST=smtp.example.com
+    SMTP_PORT=587
+    SMTP_USERNAME=your-mailbox
+    SMTP_PASSWORD=your-mailbox-app-password
+    SMTP_FROM_EMAIL=your-mailbox@example.com
+
+Port 587 uses STARTTLS; port 465 uses implicit TLS. Verification codes expire
+after 5 minutes, allow at most 5 attempts, and can be resent once per minute.
+Admins can sign in with their username or verified email address.
+An existing admin can add or change the verified recovery email from
+Admin Menu → Settings → Set Recovery Email.
+
 **KEEP YOUR CREDENTIALS PRIVATE!**
 
 Do not commit .env to the repository.
@@ -64,28 +81,3 @@ A typical .gitignore should contain:
 .env
 .venv/
 __pycache__/
-
-## First Launch
-
-From the `QUEUEING SYSTEM` directory, run:
-
-    py main.py
-
-The first launch prompts you to create the admin name and password. Later launches use the Admin, Counter User, or Kiosk User buttons on the login screen. Create counter-user accounts in **Counter Creation**; each counter user signs in to the interface for their assigned counter. Create shared kiosk credentials in the **Kiosk User** section, listed below Counter Creation in the admin menu. The kiosk can also run as a standalone public window:
-
-    py main.py kiosk
-
-## Counter Password Map
-
-Counter passwords remain hashed for sign-in and are also stored reversibly so an admin can view newly created counter credentials in **Counter Creation** after re-entering the admin password. Anyone with direct database access can read those saved passwords. Passwords for counter accounts created before this feature was added cannot be recovered.
-
-Kiosk login credentials are managed in the **Kiosk User** section and their password is stored as a one-way hash.
-
-## Resetting the App Schema
-
-This permanently deletes every table and record in the configured database's `public` schema. Back up the database first. Connect to the database named by `DB_NAME` in `.env` as its owner or a PostgreSQL superuser, then run:
-
-    DROP SCHEMA public CASCADE;
-    CREATE SCHEMA public AUTHORIZATION your_db_user;
-
-Replace `your_db_user` with the value of `DB_USER` in `.env`. Then run `py main.py`; QueueUP recreates its tables on startup and prompts you to create a new admin.

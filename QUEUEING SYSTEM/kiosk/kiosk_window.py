@@ -6,6 +6,19 @@ import customtkinter as ctk
 if __package__ in (None, ""):
 	sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from admin.styles import (
+	GREEN,
+	GREEN_HOVER,
+	INK,
+	MUTED_GREEN,
+	MUTED_TEXT,
+	PALE_GREEN,
+	SOFT_BORDER,
+	SOFT_GREEN,
+	SOFT_GREEN_HOVER,
+	SURFACE,
+	SURFACE_ALT,
+)
 from assets import center_window, set_window_icon
 from kiosk.concern_selection import ConcernSelectionMixin
 from kiosk.counter_selection import CounterSelectionMixin
@@ -13,11 +26,7 @@ from kiosk.ticket import TicketWorkflowMixin
 
 
 FONT_FAMILY = "Bahnschrift"
-GREEN = "#397A45"
-GREEN_HOVER = "#2F6639"
-PALE_GREEN = "#E8F3E8"
-INK = "#183B22"
-FAQ_MUTED = "#7B887D"
+FAQ_MUTED = MUTED_TEXT
 
 
 class KioskWindow(
@@ -26,15 +35,13 @@ class KioskWindow(
 	TicketWorkflowMixin,
 	ctk.CTkFrame,
 ):
-	COUNTER_COUNT = 6
-
 	def __init__(self, parent):
 		super().__init__(parent, corner_radius=0, fg_color=PALE_GREEN)
 		self.grid_columnconfigure(0, weight=1)
 		self.grid_rowconfigure(1, weight=1)
 		self.concern_ids: dict[str, int] = {}
 		self.concern_counters: dict[str, int] = {}
-		self.ticket_details: tuple[str, str, int] | None = None
+		self.ticket_details: tuple[str, str, int, str] | None = None
 		self.counter_choice = ctk.StringVar(value="No counters available")
 		self.counter_numbers: dict[str, int] = {}
 		self.concern_choice = ctk.StringVar(value="Choose a concern")
@@ -65,9 +72,9 @@ class KioskWindow(
 		).grid(row=0, column=1, sticky="e")
 		self.page_area = ctk.CTkFrame(
 			self,
-			fg_color="#F7FBF6",
+			fg_color=SURFACE,
 			border_width=1,
-			border_color="#BCD5BE",
+			border_color=SOFT_BORDER,
 			corner_radius=8,
 		)
 		self.page_area.grid(row=1, column=0, padx=18, pady=6, sticky="nsew")
@@ -104,7 +111,7 @@ class KioskWindow(
 			page,
 			text="Start Queueing! - Choose a counter and concern to take your place in line.",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=14),
-			text_color="#52765A",
+			text_color=MUTED_GREEN,
 			wraplength=580,
 			justify="center",
 		).pack(padx=24, pady=(0, 30))
@@ -227,9 +234,9 @@ class KioskWindow(
 	def _build_faq_panel(self, page, title: str):
 		panel = ctk.CTkFrame(
 			page,
-			fg_color="#EDF4ED",
+			fg_color=SURFACE_ALT,
 			border_width=1,
-			border_color="#D5E2D6",
+			border_color=SOFT_BORDER,
 			corner_radius=6,
 		)
 		panel.pack(fill="x", padx=24, pady=(6, 4))
@@ -237,7 +244,7 @@ class KioskWindow(
 			panel,
 			text=title,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
-			text_color="#52765A",
+			text_color=MUTED_GREEN,
 		).pack(pady=(8, 2))
 		faq_list = ctk.CTkScrollableFrame(
 			panel,
@@ -266,7 +273,7 @@ class KioskWindow(
 				target,
 				text=question,
 				font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
-				text_color="#52765A",
+				text_color=MUTED_GREEN,
 				justify="center",
 				wraplength=700,
 			).pack(fill="x", padx=8, pady=(8, 2))
@@ -291,7 +298,7 @@ class KioskWindow(
 				page,
 				text=subtitle,
 				font=ctk.CTkFont(family=FONT_FAMILY, size=13),
-				text_color="#52765A",
+				text_color=MUTED_GREEN,
 				wraplength=600,
 				justify="center",
 			).pack(padx=20, pady=(0, 8))
@@ -318,9 +325,9 @@ class KioskWindow(
 			width=width,
 			height=56,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
-			fg_color="#DDEBDD" if secondary else GREEN,
-			hover_color="#C6DEC7" if secondary else GREEN_HOVER,
-			text_color=INK if secondary else "white",
+			fg_color=SOFT_GREEN if secondary else GREEN,
+			hover_color=SOFT_GREEN_HOVER if secondary else GREEN_HOVER,
+			text_color=INK if secondary else "#FFFFFF",
 		)
 
 	def _show_page(self, page_name: str) -> None:
