@@ -45,7 +45,7 @@ def _send_code(email: str, code: str, purpose: str) -> None:
 	message["From"] = formataddr(("QueueUp_no-reply", from_address))
 	message["To"] = email
 	message.set_content(
-		f"Good day!.\n\n"
+		f"Good day!\n\n"
 		f"Your QueueUP verification code is {code}.\n\n"
 		"This code expires in 5 minutes and can only be used once. "
 		"If you did not request it, you can ignore this message."

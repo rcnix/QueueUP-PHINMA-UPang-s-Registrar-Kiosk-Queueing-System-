@@ -123,7 +123,7 @@ class AdminAccessFrame(ctk.CTkFrame):
 			text_color=GREEN,
 			cursor="hand2",
 		)
-		self.signup_link.grid(row=6, column=0, padx=16, pady=(4, 10))
+		self.signup_link.grid(row=6, column=0, padx=16, pady=(4, 2))
 		self.forgot_link = ctk.CTkLabel(
 			self.panel,
 			text="Forgot username or password?",
@@ -131,7 +131,7 @@ class AdminAccessFrame(ctk.CTkFrame):
 			text_color=GREEN,
 			cursor="hand2",
 		)
-		self.forgot_link.grid(row=7, column=0, padx=16, pady=(10, 18))
+		self.forgot_link.grid(row=7, column=0, padx=16, pady=(2, 14))
 		self.forgot_link.bind("<Button-1>", lambda _event: self.on_forgot())
 		self._on_account_type_changed("Admin")
 		self.password_entry.bind("<Return>", lambda _event: self._submit())
@@ -146,12 +146,20 @@ class AdminAccessFrame(ctk.CTkFrame):
 				text_color="#FFFFFF" if selected else INK,
 			)
 		if account_type == "Admin":
-			self.signup_link.configure(
-				text="Create an admin account",
-				text_color=GREEN,
-				cursor="hand2",
-			)
-			self.signup_link.bind("<Button-1>", lambda _event: self.on_signup())
+			if self.has_admin:
+				self.signup_link.configure(
+					text="An admin account already exists",
+					text_color=MUTED_GREEN,
+					cursor="arrow",
+				)
+				self.signup_link.unbind("<Button-1>")
+			else:
+				self.signup_link.configure(
+					text="Create an admin account",
+					text_color=GREEN,
+					cursor="hand2",
+				)
+				self.signup_link.bind("<Button-1>", lambda _event: self.on_signup())
 		elif account_type == "Counter User":
 			self.signup_link.configure(
 				text="Counter accounts are created by an admin",
@@ -204,7 +212,7 @@ class AdminRegistrationWindow(ctk.CTkToplevel):
 		self.parent = parent
 		self.on_return = on_return
 		self.title("Create Admin Account")
-		self.geometry("480x680")
+		self.geometry("480x640")
 		self.resizable(False, False)
 		set_window_icon(self)
 		self.protocol("WM_DELETE_WINDOW", self._return_to_login)
@@ -219,13 +227,13 @@ class AdminRegistrationWindow(ctk.CTkToplevel):
 			text="Create Admin Account",
 			font=ctk.CTkFont(family="Bahnschrift", size=22, weight="bold"),
 			text_color=INK,
-		).grid(row=0, column=0, padx=16, pady=(12, 6))
+		).grid(row=0, column=0, padx=16, pady=(10, 4))
 		ctk.CTkLabel(
 			panel,
 			text="Admin access is limited to the first account.",
 			font=ctk.CTkFont(family="Bahnschrift", size=12),
 			text_color=GREEN,
-		).grid(row=1, column=0, padx=16, pady=(0, 8))
+		).grid(row=1, column=0, padx=16, pady=(0, 6))
 		self.username_entry = ctk.CTkEntry(
 			panel,
 			placeholder_text="Username",
@@ -256,19 +264,8 @@ class AdminRegistrationWindow(ctk.CTkToplevel):
 			width=320,
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 		)
-		self.password_frame = ctk.CTkFrame(panel, fg_color="transparent")
-		self.password_frame.grid(row=5, column=0, padx=16, pady=4, sticky="ew")
-		self.password_frame.grid_columnconfigure(0, weight=1)
-		self.password_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
-		self._show_password = False
-		self.show_password_btn = ctk.CTkButton(
-			self.password_frame,
-			text="★",
-			width=30,
-			command=self._toggle_password_visibility,
-			font=ctk.CTkFont(family="Bahnschrift", size=13),
-		)
-		self.show_password_btn.grid(row=0, column=1)
+		self.password_entry.grid(row=5, column=0, padx=16, pady=2)
+		self.show_password_var = ctk.BooleanVar(value=False)
 		self.password_feedback = ctk.CTkLabel(
 			panel,
 			text="",
@@ -276,7 +273,7 @@ class AdminRegistrationWindow(ctk.CTkToplevel):
 			text_color=MUTED_GREEN,
 			anchor="w",
 		)
-		self.password_feedback.grid(row=6, column=0, padx=16, pady=(0, 1), sticky="w")
+		self.password_feedback.grid(row=6, column=0, padx=16, pady=(3, 1), sticky="w")
 		self.password_feedback.grid_remove()
 		self.password_requirements = ctk.CTkLabel(
 			panel,
@@ -285,7 +282,7 @@ class AdminRegistrationWindow(ctk.CTkToplevel):
 			text_color=MUTED_GREEN,
 			anchor="w",
 		)
-		self.password_requirements.grid(row=7, column=0, padx=16, pady=(0, 2), sticky="w")
+		self.password_requirements.grid(row=7, column=0, padx=16, pady=(1, 1), sticky="w")
 		self.password_requirements.grid_remove()
 		self.confirm_entry = ctk.CTkEntry(
 			panel,
@@ -294,55 +291,201 @@ class AdminRegistrationWindow(ctk.CTkToplevel):
 			width=320,
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 		)
-		self.confirm_frame = ctk.CTkFrame(panel, fg_color="transparent")
-		self.confirm_frame.grid(row=8, column=0, padx=16, pady=2, sticky="ew")
-		self.confirm_frame.grid_columnconfigure(0, weight=1)
-		self.confirm_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
-		self._show_confirm = False
-		self.show_confirm_btn = ctk.CTkButton(
-			self.confirm_frame,
-			text="★",
-			width=30,
-			command=self._toggle_confirm_visibility,
+		self.confirm_entry.grid(row=8, column=0, padx=16, pady=2)
+		self.confirm_feedback = ctk.CTkLabel(
+			panel,
+			text="",
+			font=ctk.CTkFont(family="Bahnschrift", size=11, weight="bold"),
+			anchor="w",
+		)
+		self.confirm_feedback.grid(row=10, column=0, padx=16, pady=(2, 1), sticky="w")
+		self.confirm_feedback.grid_remove()
+		self.send_code_button = ctk.CTkButton(
+			panel,
+			text="Send email verification code",
+			command=self._send_signup_code,
+			width=320,
+			font=ctk.CTkFont(family="Bahnschrift", size=13, weight="bold"),
+			fg_color=GREEN,
+			hover_color=GREEN_HOVER,
+		)
+		self.send_code_button.grid(row=11, column=0, padx=16, pady=(3, 3))
+		self.verification_entry = ctk.CTkEntry(
+			panel,
+			placeholder_text="6-digit verification code",
+			width=320,
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 		)
-		self.show_confirm_btn.grid(row=0, column=1)
+		self.verification_entry.grid(row=12, column=0, padx=16, pady=2)
+		self.signup_status = ctk.CTkLabel(
+			panel,
+			text="",
+			font=ctk.CTkFont(family="Bahnschrift", size=11),
+			text_color=GREEN,
+			wraplength=320,
+		)
+		self.signup_status.grid(row=13, column=0, padx=16, pady=(2, 1))
+		self.signup_status.grid_remove()
+		ctk.CTkButton(
+			panel,
+			text="Verify Email & Create Account",
+			command=self._verify_signup_code,
+			width=320,
+			height=42,
+			font=ctk.CTkFont(family="Bahnschrift", size=13, weight="bold"),
+			fg_color=GREEN,
+			hover_color=GREEN_HOVER,
+		).grid(row=14, column=0, padx=16, pady=(5, 4))
+		self.show_password_check = ctk.CTkCheckBox(
+			panel,
+			text="Show Password",
+			variable=self.show_password_var,
+			command=self._toggle_password_visibility,
+			font=ctk.CTkFont(family="Bahnschrift", size=12),
+			width=16,
+			height=16,
+			checkbox_width=16,
+			checkbox_height=16,
+			fg_color=GREEN,
+			hover_color=HOVER_GREEN,
+		)
+		self.show_password_check.grid(row=9, column=0, padx=16, pady=(1, 3))
+		ctk.CTkButton(
+			panel,
+			text="Back to Log In",
+			command=self._return_to_login,
+			width=320,
+			fg_color="transparent",
+			text_color=GREEN,
+			hover_color=PALE_GREEN,
+		).grid(row=15, column=0, padx=16, pady=(0, 12))
+		self.password_entry.bind("<KeyRelease>", self._update_password_feedback)
+		self.confirm_entry.bind("<KeyRelease>", self._update_password_feedback)
 
 	def _toggle_password_visibility(self) -> None:
-		self._show_password = not self._show_password
-		self.password_entry.configure(show="" if self._show_password else "*")
-		self.show_password_btn.configure(text="★" if self._show_password else "☆")
+		show = self.show_password_var.get()
+		self.password_entry.configure(show="" if show else "*")
+		self.confirm_entry.configure(show="" if show else "*")
 
-	def _toggle_confirm_visibility(self) -> None:
-		self._show_confirm = not self._show_confirm
-		self.confirm_entry.configure(show="" if self._show_confirm else "*")
-		self.show_confirm_btn.configure(text="★" if self._show_confirm else "☆")
-
-	def _submit(self) -> None:
+	def _update_password_feedback(self, _event=None, show_required: bool = False) -> None:
 		username = self.username_entry.get().strip()
+		set_field_error(
+			self.username_entry,
+			self.username_error,
+			"Username is required." if show_required and not username else "",
+		)
 		password = self.password_entry.get()
-		account_type = self.account_type.get()
-		try:
-			if account_type == "Kiosk User":
-				authenticated = authenticate_kiosk_user(username, password)
-				if not authenticated:
-					messagebox.showerror(
-						"Sign-in failed",
-						"Invalid kiosk username or password. Ask an admin to configure kiosk access.",
-						parent=self,
-					)
-					return
-				self.on_login("kiosk", None, None)
-				return
-			role = "admin" if account_type == "Admin" else "counter"
-			authenticated_user = authenticate_application_user(username, password, role)
-			if authenticated_user is None:
-				messagebox.showerror("Sign-in failed!", "INVALID USERNAME OR PASSWORD!", parent=self)
-				return
-		except (psycopg2.Error, ValueError) as error:
-			messagebox.showerror("Sign-in failed", str(error), parent=self)
+		checks = (
+			(len(password) >= 8, "8+ characters"),
+			(any(char.isupper() for char in password), "uppercase"),
+			(any(char.islower() for char in password), "lowercase"),
+			(any(char.isdigit() for char in password), "number"),
+			(any(not char.isalnum() for char in password), "symbol"),
+		)
+		is_strong = all(passed for passed, _label in checks)
+		color = GREEN if is_strong else "#A64C42"
+		self.password_feedback.configure(
+			text="Strong Password" if is_strong else "Weak Password",
+			text_color=color,
+		)
+		self.password_requirements.configure(
+			text="  ".join(
+				f"{'✓' if passed else '✗'} {label}" for passed, label in checks
+			),
+			text_color=color,
+		)
+		self.password_feedback.grid()
+		self.password_requirements.grid()
+		set_field_state(self.password_entry, not is_strong)
+		confirmation = self.confirm_entry.get()
+		if not confirmation:
+			message = "Confirm your password." if show_required else ""
+			self.confirm_feedback.configure(
+				text=message,
+				text_color="#A64C42" if message else MUTED_GREEN,
+			)
+			set_field_state(self.confirm_entry, bool(message))
+			if message:
+				self.confirm_feedback.grid()
+			else:
+				self.confirm_feedback.grid_remove()
+		elif confirmation == password:
+			self.confirm_feedback.configure(text="Password Match!", text_color=GREEN)
+			set_field_state(self.confirm_entry, False)
+			self.confirm_feedback.grid()
+		else:
+			self.confirm_feedback.configure(
+				text="Passwords do not match", text_color="#A64C42"
+			)
+			set_field_state(self.confirm_entry, True)
+			self.confirm_feedback.grid()
+
+	def _send_signup_code(self) -> None:
+		self._update_password_feedback(show_required=True)
+		username = self.username_entry.get().strip()
+		email = self.email_entry.get().strip()
+		password = self.password_entry.get()
+		strong_password = _strong_admin_password(password)
+		if not username or not email:
+			messagebox.showwarning(
+				"Account details required",
+				"Enter a username and email address.",
+				parent=self,
+			)
 			return
-		self.on_login(*authenticated_user)
+		if not strong_password:
+			messagebox.showwarning(
+				"Weak password",
+				"Use at least 8 characters and include uppercase, lowercase, a number, and a symbol.",
+				parent=self,
+			)
+			return
+		if password != self.confirm_entry.get():
+			messagebox.showwarning(
+				"Passwords do not match!",
+				"Enter the same password twice!",
+				parent=self,
+			)
+			return
+		try:
+			sent = issue_and_send_admin_code(email, "signup")
+		except (OSError, psycopg2.Error, ValueError) as error:
+			messagebox.showerror("Could not send verification email", str(error), parent=self)
+			return
+		if not sent:
+			messagebox.showerror(
+				"Verification unavailable",
+				"An admin account already exists or this address cannot be verified.",
+				parent=self,
+			)
+			return
+		self.signup_status.configure(
+			text="Code sent. Enter it within 5 minutes to create the account."
+		)
+		self.signup_status.grid()
+
+	def _verify_signup_code(self) -> None:
+		try:
+			complete_admin_signup(
+				self.username_entry.get(),
+				self.email_entry.get(),
+				self.password_entry.get(),
+				self.verification_entry.get().strip(),
+			)
+		except (psycopg2.Error, ValueError) as error:
+			messagebox.showerror("Admin verification failed", str(error), parent=self)
+			return
+		messagebox.showinfo(
+			"Admin account created",
+			"Email verified and admin account created.",
+			parent=self,
+		)
+		self._return_to_login()
+
+	def _return_to_login(self) -> None:
+		self.destroy()
+		self.parent.deiconify()
+		self.on_return()
 
 
 class AdminRecoveryWindow(ctk.CTkToplevel):
@@ -614,6 +757,18 @@ class QueueUPApp(ctk.CTk):
 	def show_registration(self) -> None:
 		if self._registration_window is not None and self._registration_window.winfo_exists():
 			self._registration_window.lift()
+			return
+		try:
+			has_admin = admin_exists()
+		except psycopg2.Error as error:
+			messagebox.showerror("Database unavailable", str(error), parent=self)
+			return
+		if has_admin:
+			messagebox.showinfo(
+				"Admin account exists",
+				"An admin account already exists. Admin access is limited to the first account.",
+				parent=self,
+			)
 			return
 		self._registration_window = AdminRegistrationWindow(self, self.show_login)
 		self._registration_window.deiconify()

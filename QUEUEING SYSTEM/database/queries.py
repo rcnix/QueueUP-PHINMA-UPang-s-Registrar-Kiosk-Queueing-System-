@@ -232,6 +232,14 @@ def complete_admin_email_update(email: str, code: str, current_password: str) ->
 		raise ValueError("The code is invalid, expired, or has reached its attempt limit")
 
 
+def verify_admin_password(password: str) -> bool:
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute("SELECT password_hash FROM users WHERE role = 'admin'")
+			row = cursor.fetchone()
+	return row is not None and verify_password(password, row[0])
+
+
 def authenticate(username: str, password: str, role: str = "admin") -> bool:
 	with get_connection() as connection:
 		with connection.cursor() as cursor:

@@ -1,7 +1,7 @@
 import calendar as month_calendar
 import tkinter as tk
 import tkinter.messagebox as messagebox
-from tkinter import ttk
+from tkinter import simpledialog, ttk
 from datetime import date, timedelta
 
 import customtkinter as ctk
@@ -48,6 +48,7 @@ from database.queries import (
 	configure_kiosk_login,
 	delete_faq,
 	save_faq,
+	verify_admin_password,
 )
 
 
@@ -691,6 +692,26 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			self.on_logout()
 
 	def _delete_admin_account(self, settings_window) -> None:
+		password = simpledialog.askstring(
+			"Confirm current password",
+			"Enter your current admin password to continue:",
+			show="*",
+			parent=settings_window,
+		)
+		if password is None:
+			return
+		try:
+			verified = verify_admin_password(password)
+		except psycopg2.Error as error:
+			messagebox.showerror("Deletion cancelled", str(error), parent=settings_window)
+			return
+		if not verified:
+			messagebox.showerror(
+				"Incorrect password",
+				"The current admin password is incorrect. Deletion cancelled.",
+				parent=settings_window,
+			)
+			return
 		if not messagebox.askyesno(
 			"Delete admin account and all data?",
 			"This permanently deletes the admin account, counter accounts, counters, "
