@@ -456,14 +456,26 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			text_color=INK,
 			anchor="w",
 		).grid(row=5, column=0, padx=20, pady=(4, 2), sticky="ew")
+		self.kiosk_password_frame = ctk.CTkFrame(card, fg_color="transparent")
+		self.kiosk_password_frame.grid(row=6, column=0, padx=20, pady=(0, 2), sticky="ew")
+		self.kiosk_password_frame.grid_columnconfigure(0, weight=1)
 		self.kiosk_password_entry = ctk.CTkEntry(
-			card,
+			self.kiosk_password_frame,
 			height=34,
 			placeholder_text="Set or replace kiosk password",
 			show="*",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=13),
 		)
-		self.kiosk_password_entry.grid(row=6, column=0, padx=20, pady=(0, 2), sticky="ew")
+		self.kiosk_password_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+		self._kiosk_show_password = False
+		self.show_kiosk_password_btn = ctk.CTkButton(
+			self.kiosk_password_frame,
+			text="✭",
+			width=30,
+			command=self._toggle_kiosk_password_visibility,
+			font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+		)
+		self.show_kiosk_password_btn.grid(row=0, column=1)
 		self.kiosk_password_error = ctk.CTkLabel(
 			card,
 			text="",
@@ -479,14 +491,26 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			text_color=INK,
 			anchor="w",
 		).grid(row=8, column=0, padx=20, pady=(4, 2), sticky="ew")
+		self.kiosk_confirm_frame = ctk.CTkFrame(card, fg_color="transparent")
+		self.kiosk_confirm_frame.grid(row=9, column=0, padx=20, pady=(0, 2), sticky="ew")
+		self.kiosk_confirm_frame.grid_columnconfigure(0, weight=1)
 		self.kiosk_confirm_entry = ctk.CTkEntry(
-			card,
+			self.kiosk_confirm_frame,
 			height=34,
 			placeholder_text="Re-enter kiosk password",
 			show="*",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=13),
 		)
-		self.kiosk_confirm_entry.grid(row=9, column=0, padx=20, pady=(0, 2), sticky="ew")
+		self.kiosk_confirm_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+		self._kiosk_show_confirm = False
+		self.show_kiosk_confirm_btn = ctk.CTkButton(
+			self.kiosk_confirm_frame,
+			text="✭",
+			width=30,
+			command=self._toggle_kiosk_confirm_visibility,
+			font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+		)
+		self.show_kiosk_confirm_btn.grid(row=0, column=1)
 		self.kiosk_confirm_error = ctk.CTkLabel(
 			card,
 			text="",
@@ -516,6 +540,21 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			fg_color=GREEN,
 			hover_color=GREEN_HOVER,
 		).grid(row=12, column=0, padx=20, pady=(2, 14), sticky="ew")
+
+	def _toggle_kiosk_password_visibility(self) -> None:
+		self._kiosk_show_password = not self._kiosk_show_password
+		self.kiosk_password_entry.configure(show="" if self._kiosk_show_password else "*")
+		self.show_kiosk_password_btn.configure(
+			text="⭑" if self._kiosk_show_password else "✭"
+		)
+
+	def _toggle_kiosk_confirm_visibility(self) -> None:
+		self._kiosk_show_confirm = not self._kiosk_show_confirm
+		self.kiosk_confirm_entry.configure(show="" if self._kiosk_show_confirm else "*")
+		self.show_kiosk_confirm_btn.configure(
+			text="⭑" if self._kiosk_show_confirm else "✭"
+		)
+
 
 	def _show_settings(self) -> None:
 		if self._settings_window is not None and self._settings_window.winfo_exists():

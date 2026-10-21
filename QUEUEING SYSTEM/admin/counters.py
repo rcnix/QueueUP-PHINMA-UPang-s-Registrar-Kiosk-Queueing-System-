@@ -62,14 +62,36 @@ class CounterCreationMixin:
 				text_color=INK,
 				anchor="w",
 			).grid(row=row, column=column, padx=16, pady=(5, 2), sticky="ew")
-			entry = ctk.CTkEntry(
-				form,
-				placeholder_text=placeholder,
-				show="*" if masked else "",
-				font=ctk.CTkFont(family=FONT_FAMILY, size=12),
-			)
-			entry.grid(row=row + 1, column=column, padx=16, pady=(0, 8), sticky="ew")
-			setattr(self, attribute, entry)
+			if masked:
+				entry_frame = ctk.CTkFrame(form, fg_color="transparent")
+				entry_frame.grid(row=row + 1, column=column, padx=16, pady=(0, 8), sticky="ew")
+				entry_frame.grid_columnconfigure(0, weight=1)
+				entry = ctk.CTkEntry(
+					entry_frame,
+					placeholder_text=placeholder,
+					show="*",
+					font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+				)
+				entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+				self._counter_show_password = False
+				self.show_counter_password_btn = ctk.CTkButton(
+					entry_frame,
+					text='✭',
+					width=30,
+					command=self._toggle_counter_password_visibility,
+					font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+				)
+				self.show_counter_password_btn.grid(row=0, column=1)
+				setattr(self, attribute, entry)
+			else:
+				entry = ctk.CTkEntry(
+					form,
+					placeholder_text=placeholder,
+					show="",
+					font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+				)
+				entry.grid(row=row + 1, column=column, padx=16, pady=(0, 8), sticky="ew")
+				setattr(self, attribute, entry)
 			feedback = ctk.CTkLabel(
 				form,
 				text="",
@@ -124,15 +146,25 @@ class CounterCreationMixin:
 			text_color=INK,
 			anchor="w",
 		).grid(row=7, column=1, padx=16, pady=(5, 2), sticky="ew")
+		self.counter_confirm_frame = ctk.CTkFrame(form, fg_color="transparent")
+		self.counter_confirm_frame.grid(row=8, column=1, padx=16, pady=(0, 8), sticky="ew")
+		self.counter_confirm_frame.grid_columnconfigure(0, weight=1)
 		self.counter_password_confirm_entry = ctk.CTkEntry(
-			form,
+			self.counter_confirm_frame,
 			placeholder_text="Re-enter the counter password",
 			show="*",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
 		)
-		self.counter_password_confirm_entry.grid(
-			row=8, column=1, padx=16, pady=(0, 8), sticky="ew"
+		self.counter_password_confirm_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+		self._counter_show_confirm = False
+		self.show_counter_confirm_btn = ctk.CTkButton(
+			self.counter_confirm_frame,
+			text='✭',
+			width=30,
+			command=self._toggle_counter_confirm_visibility,
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
 		)
+		self.show_counter_confirm_btn.grid(row=0, column=1)
 		self.counter_password_confirm_error = ctk.CTkLabel(
 			form,
 			text="",
@@ -303,13 +335,26 @@ class CounterCreationMixin:
 			text_color=INK,
 			wraplength=330,
 		).grid(row=1, column=0, padx=22, pady=(0, 8))
+		self._map_show_password = False
+		self.map_password_frame = ctk.CTkFrame(prompt, fg_color="transparent")
+		self.map_password_frame.grid(row=2, column=0, padx=22, pady=6, sticky="ew")
+		self.map_password_frame.grid_columnconfigure(0, weight=1)
 		password_entry = ctk.CTkEntry(
-			prompt,
+			self.map_password_frame,
 			placeholder_text="Admin password",
 			show="*",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
 		)
-		password_entry.grid(row=2, column=0, padx=22, pady=6, sticky="ew")
+		password_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+		self.map_password_entry = password_entry
+		self.show_map_password_btn = ctk.CTkButton(
+			self.map_password_frame,
+			text='✭',
+			width=30,
+			command=self._toggle_map_password_visibility,
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+		)
+		self.show_map_password_btn.grid(row=0, column=1)
 
 		def verify_access() -> None:
 			try:
@@ -340,6 +385,28 @@ class CounterCreationMixin:
 		).grid(row=3, column=0, padx=22, pady=(8, 16), sticky="ew")
 		password_entry.bind("<Return>", lambda _event: verify_access())
 		password_entry.focus_set()
+
+	def _toggle_counter_password_visibility(self) -> None:
+		self._counter_show_password = not self._counter_show_password
+		self.counter_password_entry.configure(show="" if self._counter_show_password else "*")
+		self.show_counter_password_btn.configure(
+			text='⭑' if self._counter_show_password else '✭'
+		)
+
+	def _toggle_counter_confirm_visibility(self) -> None:
+		self._counter_show_confirm = not self._counter_show_confirm
+		self.counter_password_confirm_entry.configure(show="" if self._counter_show_confirm else "*")
+		self.show_counter_confirm_btn.configure(
+			text='⭑' if self._counter_show_confirm else '✭'
+		)
+
+	def _toggle_map_password_visibility(self) -> None:
+		self._map_show_password = not self._map_show_password
+		self.map_password_entry.configure(show="" if self._map_show_password else "*")
+		self.show_map_password_btn.configure(
+			text='⭑' if self._map_show_password else '✭'
+		)
+
 
 	def _show_password_map(self) -> None:
 		try:
