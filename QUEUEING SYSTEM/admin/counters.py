@@ -76,7 +76,8 @@ class CounterCreationMixin:
 				self._counter_show_password = False
 				self.show_counter_password_btn = ctk.CTkButton(
 					entry_frame,
-					text='✭',
+					text='🙈',
+					fg_color="transparent",
 					width=30,
 					command=self._toggle_counter_password_visibility,
 					font=ctk.CTkFont(family=FONT_FAMILY, size=12),
@@ -159,7 +160,8 @@ class CounterCreationMixin:
 		self._counter_show_confirm = False
 		self.show_counter_confirm_btn = ctk.CTkButton(
 			self.counter_confirm_frame,
-			text='✭',
+			text='🙈',
+			fg_color="transparent",
 			width=30,
 			command=self._toggle_counter_confirm_visibility,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
@@ -349,7 +351,8 @@ class CounterCreationMixin:
 		self.map_password_entry = password_entry
 		self.show_map_password_btn = ctk.CTkButton(
 			self.map_password_frame,
-			text='✭',
+			text='🙈',
+			fg_color="transparent",
 			width=30,
 			command=self._toggle_map_password_visibility,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
@@ -390,21 +393,21 @@ class CounterCreationMixin:
 		self._counter_show_password = not self._counter_show_password
 		self.counter_password_entry.configure(show="" if self._counter_show_password else "*")
 		self.show_counter_password_btn.configure(
-			text='⭑' if self._counter_show_password else '✭'
+			text='👁️' if self._counter_show_password else '🙈'
 		)
 
 	def _toggle_counter_confirm_visibility(self) -> None:
 		self._counter_show_confirm = not self._counter_show_confirm
 		self.counter_password_confirm_entry.configure(show="" if self._counter_show_confirm else "*")
 		self.show_counter_confirm_btn.configure(
-			text='⭑' if self._counter_show_confirm else '✭'
+			text='👁️' if self._counter_show_confirm else '🙈'
 		)
 
 	def _toggle_map_password_visibility(self) -> None:
 		self._map_show_password = not self._map_show_password
 		self.map_password_entry.configure(show="" if self._map_show_password else "*")
 		self.show_map_password_btn.configure(
-			text='⭑' if self._map_show_password else '✭'
+			text='👁️' if self._map_show_password else '🙈'
 		)
 
 

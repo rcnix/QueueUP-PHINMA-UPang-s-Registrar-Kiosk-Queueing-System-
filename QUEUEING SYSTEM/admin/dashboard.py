@@ -470,7 +470,8 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self._kiosk_show_password = False
 		self.show_kiosk_password_btn = ctk.CTkButton(
 			self.kiosk_password_frame,
-			text="✭",
+			text="🙈",
+			fg_color="transparent",
 			width=30,
 			command=self._toggle_kiosk_password_visibility,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=13),
@@ -505,7 +506,8 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self._kiosk_show_confirm = False
 		self.show_kiosk_confirm_btn = ctk.CTkButton(
 			self.kiosk_confirm_frame,
-			text="✭",
+			text="🙈",
+			fg_color="transparent",
 			width=30,
 			command=self._toggle_kiosk_confirm_visibility,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=13),
@@ -545,14 +547,14 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self._kiosk_show_password = not self._kiosk_show_password
 		self.kiosk_password_entry.configure(show="" if self._kiosk_show_password else "*")
 		self.show_kiosk_password_btn.configure(
-			text="⭑" if self._kiosk_show_password else "✭"
+			text="👁️" if self._kiosk_show_password else "🙈"
 		)
 
 	def _toggle_kiosk_confirm_visibility(self) -> None:
 		self._kiosk_show_confirm = not self._kiosk_show_confirm
 		self.kiosk_confirm_entry.configure(show="" if self._kiosk_show_confirm else "*")
 		self.show_kiosk_confirm_btn.configure(
-			text="⭑" if self._kiosk_show_confirm else "✭"
+			text="👁️" if self._kiosk_show_confirm else "🙈"
 		)
 
 
