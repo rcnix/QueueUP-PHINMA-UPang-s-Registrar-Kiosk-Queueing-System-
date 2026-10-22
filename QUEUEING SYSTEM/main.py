@@ -58,7 +58,7 @@ def main() -> None:
         from counter.counter_window import main as run_screen
         run_screen(args.counter)
     else:
-        from display.display_window import main as run_screen
+        from display.queue_display import main as run_screen
         run_screen()
 
 

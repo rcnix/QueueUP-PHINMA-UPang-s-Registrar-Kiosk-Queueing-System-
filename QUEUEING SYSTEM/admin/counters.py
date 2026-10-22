@@ -5,6 +5,7 @@ import customtkinter as ctk
 import psycopg2
 
 from assets import format_counter_label, set_window_icon
+from assets.password_toggle import CLOSED, OPEN, PasswordVisibilityButton
 from admin.styles import (
 	BORDER,
 	FONT_FAMILY,
@@ -74,13 +75,11 @@ class CounterCreationMixin:
 				)
 				entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
 				self._counter_show_password = False
-				self.show_counter_password_btn = ctk.CTkButton(
+				self.show_counter_password_btn = PasswordVisibilityButton(
 					entry_frame,
-					text='🙈',
-					fg_color="transparent",
-					width=30,
 					command=self._toggle_counter_password_visibility,
-					font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+					width=30,
+					height=30,
 				)
 				self.show_counter_password_btn.grid(row=0, column=1)
 				setattr(self, attribute, entry)
@@ -158,13 +157,11 @@ class CounterCreationMixin:
 		)
 		self.counter_password_confirm_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
 		self._counter_show_confirm = False
-		self.show_counter_confirm_btn = ctk.CTkButton(
+		self.show_counter_confirm_btn = PasswordVisibilityButton(
 			self.counter_confirm_frame,
-			text='🙈',
-			fg_color="transparent",
-			width=30,
 			command=self._toggle_counter_confirm_visibility,
-			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+			width=30,
+			height=30,
 		)
 		self.show_counter_confirm_btn.grid(row=0, column=1)
 		self.counter_password_confirm_error = ctk.CTkLabel(
@@ -349,13 +346,11 @@ class CounterCreationMixin:
 		)
 		password_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
 		self.map_password_entry = password_entry
-		self.show_map_password_btn = ctk.CTkButton(
+		self.show_map_password_btn = PasswordVisibilityButton(
 			self.map_password_frame,
-			text='🙈',
-			fg_color="transparent",
-			width=30,
 			command=self._toggle_map_password_visibility,
-			font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+			width=30,
+			height=30,
 		)
 		self.show_map_password_btn.grid(row=0, column=1)
 
@@ -392,23 +387,32 @@ class CounterCreationMixin:
 	def _toggle_counter_password_visibility(self) -> None:
 		self._counter_show_password = not self._counter_show_password
 		self.counter_password_entry.configure(show="" if self._counter_show_password else "*")
-		self.show_counter_password_btn.configure(
-			text='👁️' if self._counter_show_password else '🙈'
-		)
+		self.show_counter_password_btn.set_state(OPEN if self._counter_show_password else CLOSED)
 
 	def _toggle_counter_confirm_visibility(self) -> None:
 		self._counter_show_confirm = not self._counter_show_confirm
 		self.counter_password_confirm_entry.configure(show="" if self._counter_show_confirm else "*")
-		self.show_counter_confirm_btn.configure(
-			text='👁️' if self._counter_show_confirm else '🙈'
-		)
+		self.show_counter_confirm_btn.set_state(OPEN if self._counter_show_confirm else CLOSED)
 
 	def _toggle_map_password_visibility(self) -> None:
 		self._map_show_password = not self._map_show_password
 		self.map_password_entry.configure(show="" if self._map_show_password else "*")
-		self.show_map_password_btn.configure(
-			text='👁️' if self._map_show_password else '🙈'
-		)
+		self.show_map_password_btn.set_state(OPEN if self._map_show_password else CLOSED)
+
+	def _toggle_entry_visibility(self, entry) -> None:
+		"""Toggle a masked entry between hidden and visible text."""
+		was_masked = self._entry_is_masked(entry)
+		entry.configure(show="" if was_masked else "*")
+		toggle = getattr(entry, "_password_toggle", None)
+		if toggle is not None:
+			toggle.set_state(OPEN if was_masked else CLOSED)
+
+	@staticmethod
+	def _entry_is_masked(entry) -> bool:
+		"""Whether the entry currently hides its content behind a mask."""
+		if getattr(entry, "_placeholder_text_active", False):
+			return entry._pre_placeholder_arguments.get("show", "*") == "*"
+		return entry.cget("show") == "*"
 
 
 	def _show_password_map(self) -> None:
@@ -579,6 +583,7 @@ class CounterCreationMixin:
 		)
 		entries = []
 		errors = []
+		toggles = []
 		for index, (label, value, mask) in enumerate(fields):
 			row = 2 + index * 3
 			ctk.CTkLabel(
@@ -588,14 +593,37 @@ class CounterCreationMixin:
 				text_color=INK,
 				anchor="w",
 			).grid(row=row, column=0, padx=22, pady=(2, 1), sticky="ew")
-			entry = ctk.CTkEntry(
-				window,
-				show=mask,
-				font=ctk.CTkFont(family=FONT_FAMILY, size=12),
-			)
-			entry.grid(row=row + 1, column=0, padx=22, pady=(0, 1), sticky="ew")
-			if value:
-				entry.insert(0, value)
+			if mask:
+				entry_frame = ctk.CTkFrame(window, fg_color="transparent")
+				entry_frame.grid(row=row + 1, column=0, padx=22, pady=(0, 1), sticky="ew")
+				entry_frame.grid_columnconfigure(0, weight=1)
+				entry = ctk.CTkEntry(
+					entry_frame,
+					show=mask,
+					font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+				)
+				entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+				if value:
+					entry.insert(0, value)
+				toggle = PasswordVisibilityButton(
+					entry_frame,
+					command=lambda widget=entry: self._toggle_entry_visibility(widget),
+					width=30,
+					height=30,
+				)
+				toggle.grid(row=0, column=1)
+				entry._password_toggle = toggle
+				toggles.append(toggle)
+			else:
+				entry = ctk.CTkEntry(
+					window,
+					show=mask,
+					font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+				)
+				entry.grid(row=row + 1, column=0, padx=22, pady=(0, 1), sticky="ew")
+				if value:
+					entry.insert(0, value)
+				toggles.append(None)
 			entries.append(entry)
 			feedback = ctk.CTkLabel(
 				window,

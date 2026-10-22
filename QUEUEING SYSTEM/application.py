@@ -16,6 +16,7 @@ from admin.styles import (
 	SURFACE,
 )
 from assets import center_window, format_counter_label, set_window_icon
+from assets.password_toggle import CLOSED, OPEN, PasswordVisibilityButton
 from database.queries import (
 	admin_exists,
 	authenticate_application_user,
@@ -53,7 +54,7 @@ class AdminAccessFrame(ctk.CTkFrame):
 		for child in self.winfo_children():
 			child.destroy()
 		self.panel = ctk.CTkFrame(self, width=410, fg_color=SURFACE, corner_radius=8)
-		self.panel.grid(row=0, column=0, padx=14, pady=12)
+		self.panel.grid(row=0, column=0, padx=10, pady=6)
 		self.panel.grid_columnconfigure(0, weight=1)
 		try:
 			self.has_admin = admin_exists()
@@ -65,14 +66,14 @@ class AdminAccessFrame(ctk.CTkFrame):
 			text="QueueUP",
 			font=ctk.CTkFont(family="Bahnschrift", size=24, weight="bold"),
 			text_color=INK,
-		).grid(row=0, column=0, padx=16, pady=(12, 4))
+		).grid(row=0, column=0, padx=16, pady=(8, 2), sticky="ew")
 		ctk.CTkLabel(
 			self.panel,
 			text="Welcome to QueueUP! Please log in to continue."
 			if self.has_admin else "No admin account found. Please create one.",
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 			text_color=GREEN,
-		).grid(row=1, column=0, padx=16, pady=(0, 6))
+		).grid(row=1, column=0, padx=16, pady=(0, 4), sticky="ew")
 		self.account_type = ctk.StringVar(value="Admin")
 		self.account_type_switch = ctk.CTkFrame(self.panel, fg_color="transparent")
 		self.account_type_switch.grid(row=2, column=0, padx=16, pady=3, sticky="ew")
@@ -98,24 +99,24 @@ class AdminAccessFrame(ctk.CTkFrame):
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 		)
 		self.username_entry.grid(row=3, column=0, padx=16, pady=2)
+		self.password_frame = ctk.CTkFrame(self.panel, fg_color="transparent")
+		self.password_frame.grid(row=4, column=0, padx=16, pady=2)
+		self.password_frame.grid_columnconfigure(0, weight=0)
 		self.password_entry = ctk.CTkEntry(
-			self.panel,
+			self.password_frame,
 			placeholder_text="Enter your password",
-			width=320,
+			show="*",
+			# 286px entry + 4px gap + 30px eye toggle = 320px total, matching the username box
+			width=286,
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 		)
-		self.password_frame = ctk.CTkFrame(self.panel, fg_color="transparent")
-		self.password_frame.grid(row=4, column=0, padx=16, pady=2, sticky="ew")
-		self.password_frame.grid_columnconfigure(0, weight=1)
-		self.password_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+		self.password_entry.grid(row=0, column=0, padx=(0, 4))
 		self._show_password = False
-		self.show_password_btn = ctk.CTkButton(
+		self.show_password_btn = PasswordVisibilityButton(
 			self.password_frame,
-			text="🙈",
-			fg_color="transparent",
-			width=30,
 			command=self._toggle_password_visibility,
-			font=ctk.CTkFont(family="Bahnschrift", size=13),
+			width=30,
+			height=30,
 		)
 		self.show_password_btn.grid(row=0, column=1)
 		ctk.CTkButton(
@@ -135,7 +136,7 @@ class AdminAccessFrame(ctk.CTkFrame):
 			text_color=GREEN,
 			cursor="hand2",
 		)
-		self.signup_link.grid(row=6, column=0, padx=16, pady=(4, 2))
+		self.signup_link.grid(row=6, column=0, padx=16, pady=(2, 2), sticky="ew")
 		self.forgot_link = ctk.CTkLabel(
 			self.panel,
 			text="Forgot username or password?",
@@ -143,7 +144,7 @@ class AdminAccessFrame(ctk.CTkFrame):
 			text_color=GREEN,
 			cursor="hand2",
 		)
-		self.forgot_link.grid(row=7, column=0, padx=16, pady=(2, 14))
+		self.forgot_link.grid(row=7, column=0, padx=16, pady=(2, 14), sticky="ew")
 		self.forgot_link.bind("<Button-1>", lambda _event: self.on_forgot())
 		self._on_account_type_changed("Admin")
 		self.password_entry.bind("<Return>", lambda _event: self._submit())
@@ -194,9 +195,7 @@ class AdminAccessFrame(ctk.CTkFrame):
 	def _toggle_password_visibility(self) -> None:
 		self._show_password = not self._show_password
 		self.password_entry.configure(show="" if self._show_password else "*")
-		self.show_password_btn.configure(
-			text="👁️" if self._show_password else "🙈"
-		)
+		self.show_password_btn.set_state(OPEN if self._show_password else CLOSED)
 
 	def _submit(self) -> None:
 		username = self.username_entry.get().strip()
@@ -239,7 +238,7 @@ class AdminRegistrationWindow(ctk.CTkToplevel):
 		self.grid_columnconfigure(0, weight=1)
 		self.grid_rowconfigure(0, weight=1)
 		panel = ctk.CTkFrame(self, width=410, fg_color=SURFACE, corner_radius=8)
-		panel.grid(row=0, column=0, padx=14, pady=12)
+		panel.grid(row=0, column=0, padx=10, pady=6)
 		panel.grid_columnconfigure(0, weight=1)
 		ctk.CTkLabel(
 			panel,
@@ -252,7 +251,7 @@ class AdminRegistrationWindow(ctk.CTkToplevel):
 			text="Admin access is limited to the first account.",
 			font=ctk.CTkFont(family="Bahnschrift", size=12),
 			text_color=GREEN,
-		).grid(row=1, column=0, padx=16, pady=(0, 6))
+		).grid(row=1, column=0, padx=16, pady=(0, 4))
 		self.username_entry = ctk.CTkEntry(
 			panel,
 			placeholder_text="Username",
@@ -276,24 +275,24 @@ class AdminRegistrationWindow(ctk.CTkToplevel):
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 		)
 		self.email_entry.grid(row=4, column=0, padx=16, pady=2)
+		self.password_frame = ctk.CTkFrame(panel, fg_color="transparent")
+		self.password_frame.grid(row=5, column=0, padx=16, pady=(2, 1))
+		self.password_frame.grid_columnconfigure(0, weight=0)
 		self.password_entry = ctk.CTkEntry(
-			panel,
+			self.password_frame,
 			placeholder_text="Password (8+ characters)",
-			width=320,
+			show="*",
+			# 286px entry + 4px gap + 30px eye toggle = 320px total, matching the email box
+			width=286,
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 		)
-		self.password_frame = ctk.CTkFrame(panel, fg_color="transparent")
-		self.password_frame.grid(row=5, column=0, padx=16, pady=(2, 1), sticky="ew")
-		self.password_frame.grid_columnconfigure(0, weight=1)
-		self.password_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+		self.password_entry.grid(row=0, column=0, padx=(0, 4))
 		self._show_password = False
-		self.show_password_btn = ctk.CTkButton(
+		self.show_password_btn = PasswordVisibilityButton(
 			self.password_frame,
-			text="🙈",
-			fg_color="transparent",
-			width=30,
 			command=self._toggle_reg_password_visibility,
-			font=ctk.CTkFont(family="Bahnschrift", size=13),
+			width=30,
+			height=30,
 		)
 		self.show_password_btn.grid(row=0, column=1)
 		self.password_feedback = ctk.CTkLabel(
@@ -314,24 +313,24 @@ class AdminRegistrationWindow(ctk.CTkToplevel):
 		)
 		self.password_requirements.grid(row=7, column=0, padx=16, pady=(1, 1), sticky="w")
 		self.password_requirements.grid_remove()
+		self.confirm_frame = ctk.CTkFrame(panel, fg_color="transparent")
+		self.confirm_frame.grid(row=8, column=0, padx=16, pady=(2, 1))
+		self.confirm_frame.grid_columnconfigure(0, weight=0)
 		self.confirm_entry = ctk.CTkEntry(
-			panel,
+			self.confirm_frame,
 			placeholder_text="Confirm password",
-			width=320,
+			show="*",
+			# 286px entry + 4px gap + 30px eye toggle = 320px total, matching the email box
+			width=286,
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 		)
-		self.confirm_frame = ctk.CTkFrame(panel, fg_color="transparent")
-		self.confirm_frame.grid(row=8, column=0, padx=16, pady=(2, 1), sticky="ew")
-		self.confirm_frame.grid_columnconfigure(0, weight=1)
-		self.confirm_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+		self.confirm_entry.grid(row=0, column=0, padx=(0, 4))
 		self._show_confirm = False
-		self.show_confirm_btn = ctk.CTkButton(
+		self.show_confirm_btn = PasswordVisibilityButton(
 			self.confirm_frame,
-			text="🙈",
-			fg_color="transparent",
-			width=30,
 			command=self._toggle_reg_confirm_visibility,
-			font=ctk.CTkFont(family="Bahnschrift", size=13),
+			width=30,
+			height=30,
 		)
 		self.show_confirm_btn.grid(row=0, column=1)
 		self.confirm_feedback = ctk.CTkLabel(
@@ -393,16 +392,12 @@ class AdminRegistrationWindow(ctk.CTkToplevel):
 	def _toggle_reg_password_visibility(self) -> None:
 		self._show_password = not self._show_password
 		self.password_entry.configure(show="" if self._show_password else "*")
-		self.show_password_btn.configure(
-			text="👁️" if self._show_password else "🙈"
-		)
+		self.show_password_btn.set_state(OPEN if self._show_password else CLOSED)
 
 	def _toggle_reg_confirm_visibility(self) -> None:
 		self._show_confirm = not self._show_confirm
 		self.confirm_entry.configure(show="" if self._show_confirm else "*")
-		self.show_confirm_btn.configure(
-			text="👁️" if self._show_confirm else "🙈"
-		)
+		self.show_confirm_btn.set_state(OPEN if self._show_confirm else CLOSED)
 
 	def _update_password_feedback(self, _event=None, show_required: bool = False) -> None:
 		username = self.username_entry.get().strip()
@@ -531,7 +526,7 @@ class AdminRecoveryWindow(ctk.CTkToplevel):
 		self.parent = parent
 		self.on_return = on_return
 		self.title("Recover Admin Account")
-		self.geometry("480x620")
+		self.geometry("480x400")
 		self.resizable(False, False)
 		self.transient(parent)
 		self.grab_set()
@@ -540,28 +535,29 @@ class AdminRecoveryWindow(ctk.CTkToplevel):
 		center_window(self)
 		self.grid_columnconfigure(0, weight=1)
 		panel = ctk.CTkFrame(self, width=410, fg_color=SURFACE, corner_radius=8)
-		panel.grid(row=0, column=0, padx=14, pady=12)
+		panel.grid(row=0, column=0, padx=10, pady=6, sticky="nsew")
 		panel.grid_columnconfigure(0, weight=1)
+		self.grid_rowconfigure(0, weight=1)
 		ctk.CTkLabel(
 			panel,
 			text="Recover Admin Account",
 			font=ctk.CTkFont(family="Bahnschrift", size=21, weight="bold"),
 			text_color=INK,
-		).grid(row=0, column=0, padx=16, pady=(12, 4))
+		).grid(row=0, column=0, padx=16, pady=(8, 2), sticky="ew")
 		ctk.CTkLabel(
 			panel,
 			text="A code is sent only if this email belongs to the admin.",
 			font=ctk.CTkFont(family="Bahnschrift", size=11),
 			text_color=GREEN,
 			wraplength=330,
-		).grid(row=1, column=0, padx=16, pady=(0, 6))
+		).grid(row=1, column=0, padx=16, pady=(0, 4), sticky="ew")
 		self.email_entry = ctk.CTkEntry(
 			panel,
 			placeholder_text="Admin email",
 			width=320,
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 		)
-		self.email_entry.grid(row=2, column=0, padx=16, pady=4)
+		self.email_entry.grid(row=2, column=0, padx=16, pady=2)
 		ctk.CTkButton(
 			panel,
 			text="Send recovery code",
@@ -569,54 +565,52 @@ class AdminRecoveryWindow(ctk.CTkToplevel):
 			width=320,
 			fg_color=GREEN,
 			hover_color=GREEN_HOVER,
-		).grid(row=3, column=0, padx=16, pady=4)
+		).grid(row=3, column=0, padx=16, pady=2)
 		self.code_entry = ctk.CTkEntry(
 			panel,
 			placeholder_text="6-digit code",
 			width=320,
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 		)
-		self.code_entry.grid(row=4, column=0, padx=16, pady=4)
+		self.code_entry.grid(row=4, column=0, padx=16, pady=2)
 		self.recovery_password_frame = ctk.CTkFrame(panel, fg_color="transparent")
-		self.recovery_password_frame.grid(row=5, column=0, padx=16, pady=4, sticky="ew")
-		self.recovery_password_frame.grid_columnconfigure(0, weight=1)
+		self.recovery_password_frame.grid(row=5, column=0, padx=16, pady=2)
+		self.recovery_password_frame.grid_columnconfigure(0, weight=0)
 		self.password_entry = ctk.CTkEntry(
 			self.recovery_password_frame,
 			placeholder_text="New password",
 			show="*",
-			width=320,
+			# 320 total = entry + 4px gap + 30px eye toggle, matching the code box
+			width=286,
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 		)
-		self.password_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+		self.password_entry.grid(row=0, column=0, padx=(0, 4))
 		self._recovery_show_password = False
-		self.show_recovery_password_btn = ctk.CTkButton(
+		self.show_recovery_password_btn = PasswordVisibilityButton(
 			self.recovery_password_frame,
-			text="🙈",
-			fg_color="transparent",
-			width=30,
 			command=self._toggle_recovery_password_visibility,
-			font=ctk.CTkFont(family="Bahnschrift", size=13),
+			width=30,
+			height=30,
 		)
 		self.show_recovery_password_btn.grid(row=0, column=1)
 		self.recovery_confirm_frame = ctk.CTkFrame(panel, fg_color="transparent")
-		self.recovery_confirm_frame.grid(row=6, column=0, padx=16, pady=4, sticky="ew")
-		self.recovery_confirm_frame.grid_columnconfigure(0, weight=1)
+		self.recovery_confirm_frame.grid(row=6, column=0, padx=16, pady=2)
+		self.recovery_confirm_frame.grid_columnconfigure(0, weight=0)
 		self.confirm_entry = ctk.CTkEntry(
 			self.recovery_confirm_frame,
 			placeholder_text="Confirm new password",
 			show="*",
-			width=320,
+			# 320 total = entry + 4px gap + 30px eye toggle, matching the code box
+			width=286,
 			font=ctk.CTkFont(family="Bahnschrift", size=13),
 		)
-		self.confirm_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+		self.confirm_entry.grid(row=0, column=0, padx=(0, 4))
 		self._recovery_show_confirm = False
-		self.show_recovery_confirm_btn = ctk.CTkButton(
+		self.show_recovery_confirm_btn = PasswordVisibilityButton(
 			self.recovery_confirm_frame,
-			text="🙈",
-			fg_color="transparent",
-			width=30,
 			command=self._toggle_recovery_confirm_visibility,
-			font=ctk.CTkFont(family="Bahnschrift", size=13),
+			width=30,
+			height=30,
 		)
 		self.show_recovery_confirm_btn.grid(row=0, column=1)
 		ctk.CTkLabel(
@@ -625,7 +619,7 @@ class AdminRecoveryWindow(ctk.CTkToplevel):
 			font=ctk.CTkFont(family="Bahnschrift", size=10),
 			text_color=MUTED_GREEN,
 			wraplength=330,
-		).grid(row=7, column=0, padx=16, pady=(2, 6))
+		).grid(row=7, column=0, padx=16, pady=(2, 2), sticky="ew")
 		ctk.CTkButton(
 			panel,
 			text="Verify Code & Reset Password",
@@ -633,12 +627,12 @@ class AdminRecoveryWindow(ctk.CTkToplevel):
 			width=320,
 			fg_color=GREEN,
 			hover_color=GREEN_HOVER,
-		).grid(row=8, column=0, padx=16, pady=4)
+		).grid(row=8, column=0, padx=16, pady=2)
 		self.status = ctk.CTkLabel(
 			panel, text="", font=ctk.CTkFont(family="Bahnschrift", size=11),
 			text_color=GREEN, wraplength=320,
 		)
-		self.status.grid(row=9, column=0, padx=16, pady=4)
+		self.status.grid(row=9, column=0, padx=16, pady=(2, 2), sticky="ew")
 		ctk.CTkButton(
 			panel,
 			text="Back to Log In",
@@ -646,8 +640,10 @@ class AdminRecoveryWindow(ctk.CTkToplevel):
 			width=320,
 			fg_color="transparent",
 			text_color=GREEN,
+			border_color=PALE_GREEN,
+			border_width=1,
 			hover_color=PALE_GREEN,
-		).grid(row=10, column=0, padx=16, pady=(4, 12))
+		).grid(row=10, column=0, padx=16, pady=(0, 2))
 
 	def _send_recovery_code(self) -> None:
 		try:
@@ -662,16 +658,12 @@ class AdminRecoveryWindow(ctk.CTkToplevel):
 	def _toggle_recovery_password_visibility(self) -> None:
 		self._recovery_show_password = not self._recovery_show_password
 		self.password_entry.configure(show="" if self._recovery_show_password else "*")
-		self.show_recovery_password_btn.configure(
-			text="👁️" if self._recovery_show_password else "🙈"
-		)
+		self.show_recovery_password_btn.set_state(OPEN if self._recovery_show_password else CLOSED)
 
 	def _toggle_recovery_confirm_visibility(self) -> None:
 		self._recovery_show_confirm = not self._recovery_show_confirm
 		self.confirm_entry.configure(show="" if self._recovery_show_confirm else "*")
-		self.show_recovery_confirm_btn.configure(
-			text="👁️" if self._recovery_show_confirm else "🙈"
-		)
+		self.show_recovery_confirm_btn.set_state(OPEN if self._recovery_show_confirm else CLOSED)
 
 	def _reset_password(self) -> None:
 		password = self.password_entry.get()
@@ -720,7 +712,7 @@ class AdminEmailUpdateWindow(ctk.CTkToplevel):
 		center_window(self)
 		self.grid_columnconfigure(0, weight=1)
 		panel = ctk.CTkFrame(self, width=400, fg_color=SURFACE, corner_radius=8)
-		panel.grid(row=0, column=0, padx=14, pady=12)
+		panel.grid(row=0, column=0, padx=10, pady=6)
 		panel.grid_columnconfigure(0, weight=1)
 		ctk.CTkLabel(
 			panel,
@@ -729,29 +721,28 @@ class AdminEmailUpdateWindow(ctk.CTkToplevel):
 			text_color=INK,
 		).grid(row=0, column=0, padx=16, pady=(12, 6))
 		self.email_password_frame = ctk.CTkFrame(panel, fg_color="transparent")
-		self.email_password_frame.grid(row=1, column=0, padx=16, pady=4, sticky="ew")
-		self.email_password_frame.grid_columnconfigure(0, weight=1)
+		self.email_password_frame.grid(row=1, column=0, padx=16, pady=2)
+		self.email_password_frame.grid_columnconfigure(0, weight=0)
 		self.password_entry = ctk.CTkEntry(
 			self.email_password_frame,
 			placeholder_text="Current admin password",
 			show="*",
-			width=320,
+			# 320 total = entry + 4px gap + 30px eye toggle, matching the email box
+			width=286,
 		)
-		self.password_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+		self.password_entry.grid(row=0, column=0, padx=(0, 4))
 		self._email_update_show_password = False
-		self.show_email_update_password_btn = ctk.CTkButton(
+		self.show_email_update_password_btn = PasswordVisibilityButton(
 			self.email_password_frame,
-			text="🙈",
-			fg_color="transparent",
-			width=30,
 			command=self._toggle_email_update_password_visibility,
-			font=ctk.CTkFont(family="Bahnschrift", size=13),
+			width=30,
+			height=30,
 		)
 		self.show_email_update_password_btn.grid(row=0, column=1)
 		self.email_entry = ctk.CTkEntry(
 			panel, placeholder_text="New recovery email", width=320
 		)
-		self.email_entry.grid(row=2, column=0, padx=16, pady=4)
+		self.email_entry.grid(row=2, column=0, padx=16, pady=2)
 		ctk.CTkButton(
 			panel,
 			text="Send verification code",
@@ -759,11 +750,11 @@ class AdminEmailUpdateWindow(ctk.CTkToplevel):
 			width=320,
 			fg_color=GREEN,
 			hover_color=GREEN_HOVER,
-		).grid(row=3, column=0, padx=16, pady=4)
+		).grid(row=3, column=0, padx=16, pady=2)
 		self.code_entry = ctk.CTkEntry(
 			panel, placeholder_text="6-digit verification code", width=320
 		)
-		self.code_entry.grid(row=4, column=0, padx=16, pady=4)
+		self.code_entry.grid(row=4, column=0, padx=16, pady=2)
 		ctk.CTkButton(
 			panel,
 			text="Verify & Save Email",
@@ -771,14 +762,12 @@ class AdminEmailUpdateWindow(ctk.CTkToplevel):
 			width=320,
 			fg_color=GREEN,
 			hover_color=GREEN_HOVER,
-		).grid(row=5, column=0, padx=16, pady=4)
+		).grid(row=5, column=0, padx=16, pady=2)
 
 	def _toggle_email_update_password_visibility(self) -> None:
 		self._email_update_show_password = not self._email_update_show_password
 		self.password_entry.configure(show="" if self._email_update_show_password else "*")
-		self.show_email_update_password_btn.configure(
-			text="👁️" if self._email_update_show_password else "🙈"
-		)
+		self.show_email_update_password_btn.set_state(OPEN if self._email_update_show_password else CLOSED)
 
 	def _send_code(self) -> None:
 		try:

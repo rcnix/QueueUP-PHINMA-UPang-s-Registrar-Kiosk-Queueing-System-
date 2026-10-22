@@ -1,7 +1,7 @@
 import calendar as month_calendar
 import tkinter as tk
 import tkinter.messagebox as messagebox
-from tkinter import simpledialog, ttk
+from tkinter import ttk
 from datetime import date, timedelta
 
 import customtkinter as ctk
@@ -36,6 +36,8 @@ from assets import (
 	layout_responsive_grid,
 	set_window_icon,
 )
+from assets.password_toggle import CLOSED, OPEN, PasswordVisibilityButton
+from assets.password_prompt import prompt_for_password
 from database.queries import (
 	delete_all_application_data,
 	get_concerns,
@@ -78,6 +80,7 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self._transaction_filter_window = None
 		self.faq_editor_id: int | None = None
 		self._settings_window = None
+		self._queue_board_window = None
 		self._email_update_window = None
 		self.counter_number_by_label: dict[str, int] = {}
 		self._counter_filter_menus = []
@@ -468,13 +471,11 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		)
 		self.kiosk_password_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
 		self._kiosk_show_password = False
-		self.show_kiosk_password_btn = ctk.CTkButton(
+		self.show_kiosk_password_btn = PasswordVisibilityButton(
 			self.kiosk_password_frame,
-			text="🙈",
-			fg_color="transparent",
-			width=30,
 			command=self._toggle_kiosk_password_visibility,
-			font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+			width=30,
+			height=30,
 		)
 		self.show_kiosk_password_btn.grid(row=0, column=1)
 		self.kiosk_password_error = ctk.CTkLabel(
@@ -504,13 +505,11 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		)
 		self.kiosk_confirm_entry.grid(row=0, column=0, sticky="ew", padx=(0, 4))
 		self._kiosk_show_confirm = False
-		self.show_kiosk_confirm_btn = ctk.CTkButton(
+		self.show_kiosk_confirm_btn = PasswordVisibilityButton(
 			self.kiosk_confirm_frame,
-			text="🙈",
-			fg_color="transparent",
-			width=30,
 			command=self._toggle_kiosk_confirm_visibility,
-			font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+			width=30,
+			height=30,
 		)
 		self.show_kiosk_confirm_btn.grid(row=0, column=1)
 		self.kiosk_confirm_error = ctk.CTkLabel(
@@ -546,16 +545,12 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 	def _toggle_kiosk_password_visibility(self) -> None:
 		self._kiosk_show_password = not self._kiosk_show_password
 		self.kiosk_password_entry.configure(show="" if self._kiosk_show_password else "*")
-		self.show_kiosk_password_btn.configure(
-			text="👁️" if self._kiosk_show_password else "🙈"
-		)
+		self.show_kiosk_password_btn.set_state(OPEN if self._kiosk_show_password else CLOSED)
 
 	def _toggle_kiosk_confirm_visibility(self) -> None:
 		self._kiosk_show_confirm = not self._kiosk_show_confirm
 		self.kiosk_confirm_entry.configure(show="" if self._kiosk_show_confirm else "*")
-		self.show_kiosk_confirm_btn.configure(
-			text="👁️" if self._kiosk_show_confirm else "🙈"
-		)
+		self.show_kiosk_confirm_btn.set_state(OPEN if self._kiosk_show_confirm else CLOSED)
 
 
 	def _show_settings(self) -> None:
@@ -733,11 +728,12 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			self.on_logout()
 
 	def _delete_admin_account(self, settings_window) -> None:
-		password = simpledialog.askstring(
+		password = prompt_for_password(
+			settings_window,
 			"Confirm current password",
 			"Enter your current admin password to continue:",
-			show="*",
-			parent=settings_window,
+			placeholder_text="Current admin password",
+			confirm_text="Continue",
 		)
 		if password is None:
 			return
@@ -814,6 +810,18 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			pady=8,
 		)
 		summary_badge.grid(row=0, column=1, rowspan=2, padx=14, pady=10, sticky="e")
+		self.queue_display_button = ctk.CTkButton(
+			header,
+			text="OPEN QUEUE DISPLAY",
+			command=self._open_queue_display,
+			width=220,
+			height=42,
+			font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+			fg_color=GREEN,
+			hover_color=GREEN_HOVER,
+			text_color="#FFFFFF",
+		)
+		self.queue_display_button.grid(row=0, column=2, rowspan=2, padx=(0, 14), pady=10, sticky="e")
 		self.live_grid = ctk.CTkFrame(tab, fg_color="transparent", corner_radius=0)
 		self.live_grid.grid(row=1, column=0, sticky="nsew")
 		self.live_grid.grid_columnconfigure(0, weight=1)
@@ -830,6 +838,28 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self._live_panels_rendering = False
 		self.live_panel_container = self.live_grid
 		self._render_live_counter_panels()
+
+	def _open_queue_display(self) -> None:
+		"""Launch the display-only queue board shown on the waiting-area TV."""
+		if self._queue_board_window is not None:
+			try:
+				if self._queue_board_window.winfo_exists():
+					self._queue_board_window.lift()
+					self._queue_board_window.focus_force()
+					return
+			except tk.TclError:
+				pass
+		self._queue_board_window = None
+		try:
+			from display.queue_display import open_queue_board
+
+			self._queue_board_window = open_queue_board(self.winfo_toplevel())
+		except Exception as error:  # pragma: no cover - defensive UI guard
+			messagebox.showerror(
+				"Queue display error",
+				f"The queue display could not be opened: {error}",
+				parent=self.winfo_toplevel(),
+			)
 
 	def _render_live_counter_panels(self) -> None:
 		self._live_panels_rendering = True

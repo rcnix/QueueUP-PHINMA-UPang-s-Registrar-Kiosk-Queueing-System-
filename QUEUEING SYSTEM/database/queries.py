@@ -823,6 +823,134 @@ def get_latest_tickets() -> dict[int, str | None]:
 			return dict(cursor.fetchall())
 
 
+def get_recipient_ticket(ticket_number: str) -> dict | None:
+	"""Return the recipient-facing details for a single ticket.
+
+	Returns ``None`` when no ticket matches the given number.
+	"""
+	ticket_number = ticket_number.strip()
+	if not ticket_number:
+		raise ValueError("Enter a ticket number to look up.")
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute(
+				"""
+				SELECT t.id, t.ticket_number, t.recipient_name, t.status,
+					t.counter_number, c.name, cn.name, t.concern_id,
+					t.created_at, t.called_at, t.completed_at
+				FROM tickets AS t
+				JOIN counters AS c ON c.counter_number = t.counter_number
+				LEFT JOIN concerns AS cn ON cn.id = t.concern_id
+				WHERE upper(t.ticket_number) = upper(%s)
+				ORDER BY t.id DESC
+				LIMIT 1
+				""",
+				(ticket_number,),
+			)
+			row = cursor.fetchone()
+			if row is None:
+				return None
+			position = None
+			if row[3] == "waiting":
+				cursor.execute(
+					"""
+					SELECT COUNT(*) + 1
+					FROM tickets
+					WHERE counter_number = %s AND status = 'waiting' AND id < %s
+					""",
+					(row[4], row[0]),
+				)
+				position = cursor.fetchone()[0]
+			return {
+				"ticket_id": row[0],
+				"ticket_number": row[1],
+				"recipient_name": row[2],
+				"status": row[3],
+				"counter_number": row[4],
+				"counter_name": row[5],
+				"concern_name": row[6],
+				"concern_id": row[7],
+				"created_at": row[8],
+				"called_at": row[9],
+				"completed_at": row[10],
+				"position": position,
+			}
+
+
+def get_recipient_queue_board() -> list[dict]:
+	"""Return live counter information for the recipient-facing board."""
+	with get_connection() as connection:
+		with connection.cursor() as cursor:
+			cursor.execute(
+				"""
+				SELECT c.counter_number,
+					c.name,
+					COALESCE(serving.ticket_number, ''),
+					COALESCE(waiting.ticket_numbers, ARRAY[]::TEXT[]),
+					serving.called_at,
+					COALESCE(metrics.average_service_seconds, 0),
+					COALESCE(concerns.concern_names, ARRAY[]::TEXT[])
+				FROM counters AS c
+				LEFT JOIN LATERAL (
+					SELECT ticket_number, called_at
+					FROM tickets
+					WHERE counter_number = c.counter_number AND status = 'serving'
+					ORDER BY called_at DESC NULLS LAST, id DESC
+					LIMIT 1
+				) AS serving ON TRUE
+				LEFT JOIN LATERAL (
+					SELECT array_agg(ticket_number ORDER BY id) AS ticket_numbers
+					FROM tickets
+					WHERE counter_number = c.counter_number AND status = 'waiting'
+				) AS waiting ON TRUE
+				LEFT JOIN LATERAL (
+					SELECT AVG(EXTRACT(EPOCH FROM (completed_at - called_at)))
+						AS average_service_seconds
+					FROM (
+						SELECT called_at, completed_at
+						FROM tickets
+						WHERE counter_number = c.counter_number
+							AND status = 'completed'
+							AND called_at IS NOT NULL
+							AND completed_at IS NOT NULL
+						ORDER BY completed_at DESC
+						LIMIT 50
+					) AS recent
+				) AS metrics ON TRUE
+				LEFT JOIN LATERAL (
+					SELECT array_agg(DISTINCT cn.name ORDER BY cn.name) AS concern_names
+					FROM tickets AS t
+					JOIN concerns AS cn ON cn.id = t.concern_id
+					WHERE t.counter_number = c.counter_number
+				) AS concerns ON TRUE
+				WHERE c.active = TRUE
+				ORDER BY c.counter_number
+				"""
+			)
+			rows = cursor.fetchall()
+	return [
+		{
+			"counter_number": row[0],
+			"counter_name": row[1],
+			"now_serving": row[2] or None,
+			"serving_called_at": row[4],
+			"waiting": list(row[3]),
+			"waiting_count": len(row[3]),
+			"average_service_seconds": float(row[5] or 0),
+			"concern_names": list(row[6]),
+		}
+		for row in rows
+	]
+
+
+def get_recipient_faqs_for_ticket(ticket: dict) -> list[tuple[str, str]]:
+	"""Return the FAQ entries that matter for a recipient's ticket."""
+	concern_id = ticket.get("concern_id")
+	if concern_id is not None:
+		return get_faqs(concern_id=concern_id)
+	return get_faqs(counter_number=ticket["counter_number"])
+
+
 def serve_next(counter_number: int) -> str | None:
 	if counter_number < 1:
 		raise ValueError("counter_number must be positive")
