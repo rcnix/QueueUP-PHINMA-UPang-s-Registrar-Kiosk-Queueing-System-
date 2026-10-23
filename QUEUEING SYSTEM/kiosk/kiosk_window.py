@@ -1,23 +1,27 @@
+# KIOSK WINDOW - KIOSK UI
+# Provides the main kiosk interface for recipients, allowing them to select
+# a counter, choose a concern, view FAQs, and issue tickets.
+
 import sys
 from pathlib import Path
 
 import customtkinter as ctk
 
-if __package__ in (None, ""):
-	sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+if __package__ in (None, ''):
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from admin.styles import (
-	GREEN,
-	GREEN_HOVER,
-	INK,
-	MUTED_GREEN,
-	MUTED_TEXT,
-	PALE_GREEN,
-	SOFT_BORDER,
-	SOFT_GREEN,
-	SOFT_GREEN_HOVER,
-	SURFACE,
-	SURFACE_ALT,
+GREEN,
+GREEN_HOVER,
+INk,
+MUTED_GREEN,
+MUTED_TEXT,
+PALE_GREEN,
+SOFT_BORDER,
+SOFT_GREEN,
+SOFT_GREEN_HOVER,
+SURFACE,
+SURFACE_ALT,
 )
 from assets import center_window, set_window_icon
 from kiosk.concern_selection import ConcernSelectionMixin
@@ -25,11 +29,14 @@ from kiosk.counter_selection import CounterSelectionMixin
 from kiosk.ticket import TicketWorkflowMixin
 
 
-FONT_FAMILY = "Bahnschrift"
-FAQ_MUTED = MUTED_TEXT
-
-
+# class KioskWindow - Main kiosk interface for recipients to select counters,
+# choose concerns, view FAQs, and issue tickets.
 class KioskWindow(
+CounterSelectionMixin,
+ConcernSelectionMixin,
+TicketWorkflowMixin,
+ctk.CTkFrame,
+):class KioskWindow(
 	CounterSelectionMixin,
 	ConcernSelectionMixin,
 	TicketWorkflowMixin,

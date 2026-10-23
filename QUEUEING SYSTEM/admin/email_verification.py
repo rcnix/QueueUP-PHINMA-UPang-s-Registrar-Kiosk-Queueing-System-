@@ -1,3 +1,7 @@
+# EMAIL VERIFICATION - ADMIN UI
+# Handles sending email verification codes to admin users for account
+# creation, password recovery, and email address updates via SMTP.
+
 import os
 import smtplib
 import ssl
@@ -10,6 +14,9 @@ from dotenv import load_dotenv
 from database.queries import issue_admin_email_code, revoke_admin_email_code
 
 
+# def _load_mail_settings() -> tuple[str, int, str, str, str] - Loads SMTP
+# configuration from environment files, searching project and parent FINAL
+# directories as fallbacks.
 def _load_mail_settings() -> tuple[str, int, str, str, str]:
 	project_root = Path(__file__).resolve().parents[1]
 	project_env = project_root / ".env"
@@ -34,6 +41,8 @@ def _load_mail_settings() -> tuple[str, int, str, str, str]:
 	return host, port, username, password, from_address
 
 
+# def _send_code() - Sends a verification email with a temporary code to the
+# specified recipient using the configured SMTP server.
 def _send_code(email: str, code: str, purpose: str) -> None:
 	host, port, username, password, from_address = _load_mail_settings()
 	message = EmailMessage()
@@ -66,6 +75,8 @@ def _send_code(email: str, code: str, purpose: str) -> None:
 			server.send_message(message)
 
 
+# def issue_and_send_admin_code() - Generates a verification code and sends
+# it via email, returning True on success or False if no code was issued.
 def issue_and_send_admin_code(
 	email: str,
 	purpose: str,

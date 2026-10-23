@@ -1,3 +1,7 @@
+# MODULE UTILITIES - ADMIN UI
+# Shared helper functions for building responsive layouts and formatting
+# counter labels across the QueueUP application.
+
 from collections.abc import Sequence
 from pathlib import Path
 import tkinter as tk

@@ -1,3 +1,7 @@
+# COUNTERS MANAGEMENT - ADMIN UI
+# Provides forms for creating, editing, and deleting counter accounts,
+# including password management and counter configuration.
+
 import re
 import tkinter.messagebox as messagebox
 
@@ -7,28 +11,30 @@ import psycopg2
 from assets import format_counter_label, set_window_icon
 from assets.password_toggle import CLOSED, OPEN, PasswordVisibilityButton
 from admin.styles import (
-	BORDER,
-	FONT_FAMILY,
-	GREEN,
-	GREEN_HOVER,
-	INK,
-	SOFT_BORDER,
-	SOFT_GREEN,
-	SOFT_GREEN_HOVER,
-	SURFACE,
+BORDER,
+FONT_FAMILY,
+GREEN,
+GREEN_HOVER,
+INK,
+SOFT_BORDER,
+SOFT_GREEN,
+SOFT_GREEN_HOVER,
+SURFACE,
 )
 from database.queries import (
-	authenticate_admin_password,
-	create_counter_account,
-	delete_counter_account,
-	get_counter_password_map,
-	get_counters,
-	update_counter_account,
+authenticate_admin_password,
+create_counter_account,
+delete_counter_account,
+get_counter_password_map,
+get_counters,
+update_counter_account,
 )
 from database.models import MAX_COUNTERS
 from admin.validation import set_field_error
 
 
+# class CounterCreationMixin - Mixin that provides counter account creation,
+# editing, and deletion forms in the admin dashboard.
 class CounterCreationMixin:
 	def _build_counter_creation_tab(self, tab) -> None:
 		tab.grid_columnconfigure(0, weight=1)

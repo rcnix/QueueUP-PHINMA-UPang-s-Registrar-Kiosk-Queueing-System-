@@ -1,3 +1,7 @@
+# DATABASE MODELS - DATABASE
+# Defines dataclasses for domain entities (Ticket, Concern) and the SQL
+# schema statements used to initialize the PostgreSQL database.
+
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -7,6 +11,7 @@ MAX_COUNTERS = 100
 
 @dataclass(frozen=True)
 class Ticket:
+	"""Represents a queue ticket with its associated metadata."""
 	id: int
 	ticket_number: str
 	counter_number: int
@@ -17,6 +22,7 @@ class Ticket:
 
 @dataclass(frozen=True)
 class Concern:
+	"""Represents a service concern that can be offered at a counter."""
 	id: int
 	name: str
 	prefix: str

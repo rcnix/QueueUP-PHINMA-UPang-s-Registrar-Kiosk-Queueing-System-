@@ -1,3 +1,7 @@
+# CONCERNS MANAGEMENT - ADMIN UI
+# Manages service concerns that can be offered at counters, including adding,
+# editing, deleting, and browsing service concerns and their ticket statistics.
+
 import tkinter as tk
 import tkinter.messagebox as messagebox
 
@@ -6,21 +10,24 @@ import psycopg2
 
 from assets import format_counter_label
 from admin.styles import (
-	ADMIN_CANVAS,
-	BORDER,
-	FONT_FAMILY,
-	GREEN,
-	GREEN_HOVER,
-	INK,
-	MUTED_TEXT,
-	SOFT_BORDER,
-	SOFT_GREEN,
-	SURFACE,
+ADMIN_CANVAS,
+BORDER,
+FONT_FAMILY,
+GREEN,
+GREEN_HOVER,
+INK,
+MUTED_TEXT,
+SOFT_BORDER,
+SOFT_GREEN,
+SOFT_GREEN_HOVER,
+SURFACE,
 )
 from admin.validation import set_field_error
 from database.queries import add_concern, delete_concern, get_concern_stats, get_concerns, get_counters
 
 
+# class ConcernManagementMixin - Mixin that provides concern management forms,
+# browsing, filtering, and deletion of service concerns in the admin dashboard.
 class ConcernManagementMixin:
 	def _build_concerns_tab(self, tab) -> None:
 		tab.grid_columnconfigure(0, weight=1)

@@ -1,3 +1,7 @@
+# CALENDAR MANAGEMENT - ADMIN UI
+# Provides a monthly calendar view for browsing ticket counts, daily
+# transaction history, and date-based filtering for the admin dashboard.
+
 from datetime import date
 import calendar as month_calendar
 
@@ -18,11 +22,17 @@ from admin.styles import (
 from database.queries import get_daily_transactions, get_monthly_ticket_counts
 
 
+# class AdminCalendarMixin - Mixin that provides a monthly calendar view,
+# daily transaction display, and date navigation for the admin dashboard.
 class AdminCalendarMixin:
+	# def _initialize_calendar() - Sets the initial calendar state to the
+	# first day of the current month and selects today's date.
 	def _initialize_calendar(self) -> None:
 		self._calendar_date = date.today().replace(day=1)
 		self._selected_date = date.today()
 
+	# def _load_calendar() - Loads the calendar for the selected month and year,
+	# fetching monthly ticket counts and rendering the calendar grid.
 	def _load_calendar(self) -> None:
 		try:
 			month = self.calendar_month_values.index(self.calendar_month.get()) + 1
@@ -80,6 +90,8 @@ class AdminCalendarMixin:
 		)
 		self._show_day(self._selected_date)
 
+	# def _show_day() - Displays the daily transaction records for the
+	# selected date in the day detail panel.
 	def _show_day(self, selected_date: date) -> None:
 		self._selected_date = selected_date
 		for day_date, button in self.calendar_buttons.items():
@@ -151,3 +163,4 @@ class AdminCalendarMixin:
 					)
 		except psycopg2.Error as error:
 			self.status.set(f"Could not load that date: {error}")
+

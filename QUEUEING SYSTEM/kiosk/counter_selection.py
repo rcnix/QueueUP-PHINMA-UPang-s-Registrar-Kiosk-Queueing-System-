@@ -1,10 +1,16 @@
+# COUNTER SELECTION - KIOSK UI
+# Provides the counter selection interface for kiosks, allowing recipients
+# to choose a counter, view FAQs, and proceed to ticket issuance.
+
 import psycopg2
 
 from assets import format_counter_label
 from database.queries import get_counters, get_faqs
 
 
-class CounterSelectionMixin:
+# class CounterSelectionMixin - Mixin that provides the counter selection
+# interface for kiosks, including counter browsing and FAQ display.
+class CounterSelectionMixin:class CounterSelectionMixin:
 	def _refresh_counters(self) -> None:
 		try:
 			counters = get_counters()

@@ -1,3 +1,7 @@
+# ADMIN DASHBOARD - ADMIN UI
+# Central administrative panel providing live queue monitoring, transaction
+# history, FAQ editing, counter management, and calendar views.
+
 import calendar as month_calendar
 import tkinter as tk
 import tkinter.messagebox as messagebox
@@ -12,48 +16,51 @@ from admin.calendar import AdminCalendarMixin
 from admin.concerns import ConcernManagementMixin
 from admin.counters import CounterCreationMixin
 from admin.styles import (
-	ADMIN_BACKGROUND,
-	ADMIN_CANVAS,
-	BORDER,
-	FONT_FAMILY,
-	GREEN,
-	GREEN_HOVER,
-	HOVER_GREEN,
-	INK,
-	MUTED_GREEN,
-	MUTED_TEXT,
-	PALE_BORDER,
-	PALE_GREEN,
-	SOFT_BORDER,
-	SOFT_GREEN,
-	SOFT_GREEN_HOVER,
-	SURFACE,
-	SURFACE_ALT,
+ADMIN_BACKGROUND,
+ADMIN_CANVAS,
+BORDER,
+FONT_FAMILY,
+GREEN,
+GREEN_HOVER,
+HOVER_GREEN,
+INK,
+MUTED_GREEN,
+MUTED_TEXT,
+PALE_BORDER,
+PALE_GREEN,
+SOFT_BORDER,
+SOFT_GREEN,
+SOFT_GREEN_HOVER,
+SURFACE,
+SURFACE_ALT,
 )
 from admin.validation import set_field_error
 from assets import (
-	format_counter_label,
-	layout_responsive_grid,
-	set_window_icon,
+format_counter_label,
+layout_responsive_grid,
+set_window_icon,
 )
 from assets.password_toggle import CLOSED, OPEN, PasswordVisibilityButton
 from assets.password_prompt import prompt_for_password
 from database.queries import (
-	delete_all_application_data,
-	get_concerns,
-	get_counters,
-	get_faqs,
-	get_kiosk_login_username,
-	get_latest_tickets,
-	get_queue_snapshot,
-	get_transactions,
-	configure_kiosk_login,
-	delete_faq,
-	save_faq,
-	verify_admin_password,
+delete_all_application_data,
+get_concerns,
+get_counters,
+get_faqs,
+get_kiosk_login_username,
+get_latest_tickets,
+get_queue_snapshot,
+get_transactions,
+configure_kiosk_login,
+delete_faq,
+save_faq,
+verify_admin_password,
 )
 
 
+# class AdminDashboard - Central administrative panel providing live queue
+# monitoring, transaction history, FAQ editing, counter management, and
+# calendar views.
 class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 	TABLE_WEIGHTS = (1.0, 0.65, 0.8, 1.8, 1.25, 1.25, 1.25)
 	ADMIN_SECTIONS = (

@@ -1,3 +1,16 @@
+# DATABASE QUERIES - DATABASE
+# Provides data access functions for the PostgreSQL database, including
+# schema initialization, user management, ticket operations, and
+# reporting queries for the admin dashboard.
+
+import re
+import secrets
+from datetime import date, datetime
+
+from database.connection import get_connection, hash_password, verify_password
+from database.models import MAX_COUNTERS, SCHEMA_STATEMENTS
+
+
 import re
 import secrets
 from datetime import date, datetime

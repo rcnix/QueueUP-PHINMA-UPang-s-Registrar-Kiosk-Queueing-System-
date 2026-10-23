@@ -9,6 +9,12 @@ The layout is tuned for a television that is viewed from a distance, so the
 serving ticket is rendered far larger than everything else and the counters
 are laid out in a responsive grid that reflows as the window is resized.
 """
+# DISPLAY QUEUE BOARD - DISPLAY UI
+# Provides a television-facing display of live queue status for all counters,
+# showing the current serving ticket, waiting list, and updated information.
+
+from datetime import datetime
+
 
 import tkinter as tk
 from datetime import datetime

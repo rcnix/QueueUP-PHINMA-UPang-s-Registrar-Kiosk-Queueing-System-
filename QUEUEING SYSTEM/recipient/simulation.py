@@ -19,7 +19,55 @@ from admin.styles import (
 	SURFACE_ALT,
 )
 from assets import format_counter_label, set_window_icon
-from database.queries import (
+
+
+# RECIPIENT SIMULATION - RECIPIENT UI
+# Provides a recipient-facing simulation view of live queues, allowing
+# recipients to track their ticket status, see what is being served, and
+# view counter information.
+
+STATUS_LABELS = {
+	"waiting": "WAITING IN QUEUE",
+	"serving": "NOW BEING SERVED",
+	"completed": "COMPLETED",
+	"cancelled": "CANCELLED",
+}
+
+REFRESH_INTERVAL_MS = 2000
+
+DETAIL_KEYS = (
+	"Recipient",
+	"Service",
+	"Counter",
+	"Your Position",
+	"Estimated Wait",
+)
+
+
+# def format_duration() - Renders a wait estimate as a short human readable
+# duration (e.g. "About 5 minutes", "Less than a minute").
+def format_duration(seconds: float) -> str:
+	minutes = int(round(seconds / 60))
+	if minutes < 1:
+		return "Less than a minute"
+	if minutes < 60:
+		return f"About {minutes} minute{'s' if minutes != 1 else ''}"
+	hours, _remainder = divmod(minutes, 60)
+	if hours < 24:
+		return f"About {hours} hour{'s' if hours != 1 else ''}"
+	return f"About {hours // 24} day{'s' if hours // 24 != 1 else ''}"
+
+
+# def format_clock() - Renders a timestamp as a short clock time string.
+def format_clock(value: datetime | None) -> str:
+	if value is None:
+		return "--"
+	return value.strftime("%I:%M %p").lstrip("0")
+
+
+# class RecipientSimulationWindow - A recipient-facing view of the live queues,
+# allowing ticket lookup and counter simulation.
+class RecipientSimulationWindow(ctk.CTkToplevel):from database.queries import (
 	get_recipient_faqs_for_ticket,
 	get_recipient_queue_board,
 	get_recipient_ticket,

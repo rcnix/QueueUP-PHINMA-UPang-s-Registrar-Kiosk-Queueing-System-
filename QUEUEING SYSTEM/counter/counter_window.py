@@ -1,3 +1,7 @@
+# COUNTER INTERFACE - COUNTER UI
+# Provides the counter interface for service windows, showing queue status,
+# waiting tickets, and serving controls for each counter.
+
 import tkinter as tk
 import tkinter.messagebox as messagebox
 
@@ -5,28 +9,30 @@ import customtkinter as ctk
 import psycopg2
 
 from assets import (
-	center_window,
-	format_counter_label,
-	layout_responsive_grid,
-	set_window_icon,
+center_window,
+format_counter_label,
+layout_responsive_grid,
+set_window_icon,
 )
 from admin.styles import (
-	BORDER,
-	FONT_FAMILY,
-	GREEN,
-	GREEN_HOVER,
-	INK,
-	MUTED_GREEN,
-	PALE_GREEN,
-	SOFT_GREEN,
-	SOFT_GREEN_HOVER,
-	SURFACE,
-	SURFACE_ALT,
+BORDER,
+FONT_FAMILY,
+GREEN,
+GREEN_HOVER,
+INk,
+MUTED_GREEN,
+PALE_GREEN,
+SOFT_GREEN,
+SOFT_GREEN_HOVER,
+SURFACE,
+SURFACE_ALT,
 )
 from database.queries import get_counters, get_queue_snapshot, serve_next
 
 
-class CounterControls(ctk.CTkFrame):
+# class CounterControls - Counter interface frame showing queue status,
+# waiting tickets, and serving controls for each counter.
+class CounterControls(ctk.CTkFrame):class CounterControls(ctk.CTkFrame):
 	def __init__(self, parent):
 		super().__init__(parent, corner_radius=0, fg_color=PALE_GREEN)
 		self.grid_columnconfigure(0, weight=1)

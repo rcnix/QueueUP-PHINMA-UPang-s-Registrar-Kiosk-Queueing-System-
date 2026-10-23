@@ -1,3 +1,7 @@
+# ADMIN LIVE DASHBOARD - ADMIN UI
+# Provides a real-time counter display showing queue status, active tickets,
+# and live updates for the admin dashboard view.
+
 import tkinter as tk
 import tkinter.messagebox as messagebox
 
@@ -5,25 +9,25 @@ import customtkinter as ctk
 import psycopg2
 
 from admin.styles import (
-	BORDER,
-	FONT_FAMILY,
-	GREEN,
-	INK,
-	MUTED_GREEN,
-	PALE_GREEN,
-	SURFACE,
+BORDER,
+FONT_FAMILY,
+GREEN,
+INK,
+MUTED_GREEN,
+PALE_GREEN,
+SURFACE,
 )
 from assets import (
-	center_window,
-	format_counter_label,
-	layout_responsive_grid,
-	set_window_icon,
+center_window,
+format_counter_label,
+layout_responsive_grid,
+set_window_icon,
 )
 from database.queries import ensure_schema, get_counters, get_queue_snapshot
 
 
-
-
+# class MainFrame - Main frame for the admin live dashboard, showing live
+# counter activity, queue snapshots, and responsive counter panels.
 class MainFrame(ctk.CTkFrame):
 	def __init__(self, parent):
 		super().__init__(parent, corner_radius=0, fg_color=PALE_GREEN)

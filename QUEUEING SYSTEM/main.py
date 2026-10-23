@@ -6,11 +6,19 @@ import psycopg2
 
 from application import QueueUPApp
 from database.queries import ensure_schema
-from database.models import MAX_COUNTERS
+from database.models import *
+
+
+# MAIN - APPLICATION ENTRY POINT
+# Command-line entry point for the QueueUP queueing system. Parses
+# command-line arguments to select the interface and launches the
+# appropriate screen with database initialization.
 
 FONT_FAMILY = "Bahnschrift"
 
 
+# def _arguments() - Parse command-line arguments and return the selected
+# screen and counter options.
 def _arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="QueueUP queueing system")
     parser.add_argument(
@@ -30,6 +38,7 @@ def _arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+# def main() - Initialize the database and launch the selected QueueUP interface.
 def main() -> None:
     args = _arguments()
     ctk.set_appearance_mode("Light")
@@ -43,7 +52,7 @@ def main() -> None:
         messagebox.showerror(
             "Database setup error",
             "Could not prepare PostgreSQL. Check that it is running and that the "
-            f".env settings are correct.\n\n{error}",
+            f".env settings are correct. {error}",
             parent=root,
         )
         root.destroy()

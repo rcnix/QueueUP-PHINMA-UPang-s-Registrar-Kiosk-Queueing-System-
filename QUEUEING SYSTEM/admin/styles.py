@@ -1,3 +1,7 @@
+# STYLE CONSTANTS - ADMIN UI
+# Centralized color and font definitions used across all admin dashboard
+# components, following the application's theming system.
+
 FONT_FAMILY = "Bahnschrift"
 ADMIN_BACKGROUND = ("#EEF1EE", "#202822")
 ADMIN_CANVAS = ("#E1E5E1", "#28332B")

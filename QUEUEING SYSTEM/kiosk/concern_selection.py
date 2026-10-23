@@ -1,3 +1,7 @@
+# CONCERN SELECTION - KIOSK UI
+# Provides the concern selection interface for kiosks, allowing recipients
+# to choose a service, view FAQs, and proceed to ticket issuance.
+
 import tkinter.messagebox as messagebox
 
 import psycopg2
@@ -5,7 +9,10 @@ import psycopg2
 from database.queries import get_concerns, get_faqs
 
 
-class ConcernSelectionMixin:
+# class ConcernSelectionMixin - Mixin that provides the concern selection
+# interface for kiosks, including concern browsing, FAQ display, and
+# navigation between kiosk pages.
+class ConcernSelectionMixin:class ConcernSelectionMixin:
 	def _next_to_concern(self) -> None:
 		self._update_concern_options()
 		counter_number = self.counter_numbers.get(self.counter_choice.get())
