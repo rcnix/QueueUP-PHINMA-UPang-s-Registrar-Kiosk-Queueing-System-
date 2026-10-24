@@ -659,6 +659,9 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 	def _set_admin_appearance_mode(self, dark_mode: bool) -> None:
 		ctk.set_appearance_mode("Dark" if dark_mode else "Light")
 		self._apply_native_widget_theme()
+		if hasattr(self, "live_panel_container"):
+			self._render_live_counter_panels()
+			self._refresh_live_queues()
 
 	def _apply_native_widget_theme(self) -> None:
 		mode = 1 if ctk.get_appearance_mode().lower() == "dark" else 0
@@ -1140,7 +1143,6 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 
 	def _build_live_placeholder(self) -> ctk.CTkFrame:
 		mode = 1 if ctk.get_appearance_mode().lower() == "dark" else 0
-		background = ADMIN_CANVAS[mode]
 		holder = ctk.CTkFrame(
 			self.live_panel_container,
 			width=280,
@@ -1153,18 +1155,11 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		holder.grid_rowconfigure(0, weight=1)
 		canvas = tk.Canvas(
 			holder,
-			background=background,
+			background=ADMIN_CANVAS[mode],
 			highlightthickness=0,
 			borderwidth=0,
 		)
 		canvas.grid(row=0, column=0, sticky="nsew")
-		outline = BORDER[mode]
-		canvas.bind(
-			"<Configure>",
-			lambda event: self._draw_placeholder_outline(
-				canvas, event.width, event.height, outline
-			),
-		)
 		content = ctk.CTkFrame(holder, fg_color="transparent")
 		content.grid(row=0, column=0)
 		icon_box = ctk.CTkFrame(
@@ -1176,50 +1171,60 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		)
 		icon_box.pack(pady=(0, 14))
 		icon_box.pack_propagate(False)
-		self._draw_layers_icon(icon_box, MUTED_GREEN[mode], SOFT_GREEN[mode])
+		self._draw_layers_icon(icon_box)
 		ctk.CTkLabel(
 			content,
 			text="No additional counters",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
 			text_color=INK,
 		).pack()
-		ctk.CTkLabel(
+		description = ctk.CTkLabel(
 			content,
 			text="New service counters will appear here as soon as they are opened.",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=11),
 			text_color=MUTED_TEXT,
-			wraplength=210,
+			wraplength=180,
 			justify="center",
-		).pack(pady=(6, 0))
+		)
+		description.pack(pady=(6, 0))
+		canvas.bind(
+			"<Configure>",
+			lambda event: self._layout_live_placeholder(
+				holder, canvas, description, event
+			),
+		)
 		return holder
 
-	@staticmethod
-	def _draw_placeholder_outline(
-		canvas: tk.Canvas, width: int, height: int, color
-	) -> None:
+	def _layout_live_placeholder(self, holder, canvas, description, event) -> None:
+		mode = 1 if ctk.get_appearance_mode().lower() == "dark" else 0
+		canvas.configure(background=ADMIN_CANVAS[mode])
 		canvas.delete("outline")
 		canvas.create_rectangle(
 			1,
 			1,
-			max(width - 2, 2),
-			max(height - 2, 2),
-			outline=color,
+			max(event.width - 2, 2),
+			max(event.height - 2, 2),
+			outline=BORDER[mode],
 			dash=(6, 5),
 			width=1,
 			tags="outline",
 		)
+		scale = holder._apply_widget_scaling(1) or 1
+		description.configure(wraplength=max(120, int((event.width - 64) / scale)))
 
 	@staticmethod
-	def _draw_layers_icon(parent, stroke, background) -> None:
+	def _draw_layers_icon(parent) -> None:
+		mode = 1 if ctk.get_appearance_mode().lower() == "dark" else 0
 		canvas = tk.Canvas(
 			parent,
 			width=34,
 			height=30,
-			background=background,
+			background=SOFT_GREEN[mode],
 			highlightthickness=0,
 			borderwidth=0,
 		)
 		canvas.place(relx=0.5, rely=0.5, anchor="center")
+		stroke = MUTED_GREEN[mode]
 		canvas.create_line(
 			17, 2, 31, 10, 17, 18, 3, 10, 17, 2,
 			fill=stroke, width=2, joinstyle="round",
