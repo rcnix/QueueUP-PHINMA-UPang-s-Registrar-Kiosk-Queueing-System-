@@ -38,6 +38,7 @@ from admin.validation import set_field_error
 from assets import (
 format_counter_label,
 layout_responsive_grid,
+load_logo_image,
 set_window_icon,
 )
 from assets.password_toggle import CLOSED, OPEN, PasswordVisibilityButton
@@ -128,18 +129,31 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self.section_button.grid(row=0, column=0, sticky="w", padx=(0, 12))
 		title_block = ctk.CTkFrame(header, fg_color="transparent")
 		title_block.grid(row=0, column=1)
+		self.header_logo = load_logo_image(46)
+		if self.header_logo is not None:
+			ctk.CTkLabel(
+				title_block,
+				text="",
+				image=self.header_logo,
+				width=46,
+				height=46,
+			).pack(side="left", padx=(0, 12))
+		title_text = ctk.CTkFrame(title_block, fg_color="transparent")
+		title_text.pack(side="left")
 		ctk.CTkLabel(
-			title_block,
+			title_text,
 			text="O P E R A T I O N S   C O N S O L E",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=9, weight="bold"),
 			text_color=MUTED_TEXT,
-		).pack()
+			anchor="w",
+		).pack(anchor="w")
 		ctk.CTkLabel(
-			title_block,
+			title_text,
 			text="QueueUP Admin",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=26, weight="bold"),
 			text_color=INK,
-		).pack(pady=(1, 0))
+			anchor="w",
+		).pack(anchor="w", pady=(1, 0))
 		self.active_section_label = tk.StringVar(value="LIVE QUEUES")
 		ctk.CTkLabel(
 			header,
@@ -195,14 +209,23 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self.section_drawer.pack_propagate(False)
 		drawer_header = ctk.CTkFrame(self.section_drawer, fg_color="transparent")
 		drawer_header.pack(fill="x", padx=16, pady=(20, 16))
-		drawer_header.grid_columnconfigure(0, weight=1)
+		drawer_header.grid_columnconfigure(1, weight=1)
+		self.drawer_logo = load_logo_image(34)
+		if self.drawer_logo is not None:
+			ctk.CTkLabel(
+				drawer_header,
+				text="",
+				image=self.drawer_logo,
+				width=34,
+				height=34,
+			).grid(row=0, column=0, sticky="w", padx=(0, 10))
 		ctk.CTkLabel(
 			drawer_header,
 			text="ADMIN MENU",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
 			text_color=GREEN,
 			anchor="w",
-		).grid(row=0, column=0, sticky="w")
+		).grid(row=0, column=1, sticky="w")
 		ctk.CTkButton(
 			drawer_header,
 			text="\u00d7",
@@ -213,7 +236,7 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			hover_color=SOFT_GREEN,
 			text_color=INK,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=22),
-		).grid(row=0, column=1, sticky="e")
+		).grid(row=0, column=2, sticky="e")
 		section_list = ctk.CTkFrame(self.section_drawer, fg_color="transparent")
 		self._section_nav_buttons = {}
 		for section in self.ADMIN_SECTIONS:

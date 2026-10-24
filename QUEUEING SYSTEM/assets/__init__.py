@@ -81,6 +81,30 @@ def set_window_icon(window) -> None:
 		pass
 
 
+def load_logo_image(size: int):
+	"""Return the QueueUP logo as a scaled CTkImage, or None when unavailable.
+
+	CTkImage needs Pillow, so when Pillow or the icon file is missing the
+	caller simply renders without a logo instead of failing to start.
+	"""
+	if not LOGO_PATH.is_file():
+		return None
+	try:
+		from PIL import Image
+		import customtkinter as ctk
+	except ImportError:
+		return None
+	try:
+		with Image.open(LOGO_PATH) as source:
+			sizes = getattr(source, "sizes", None)
+			if sizes:
+				source.size = max(sizes, key=lambda item: item[0] * item[1])
+			image = source.convert("RGBA")
+	except (OSError, ValueError):
+		return None
+	return ctk.CTkImage(light_image=image, dark_image=image, size=(size, size))
+
+
 def center_window(window: tk.Misc) -> None:
 	window.update_idletasks()
 	width = window._current_width
