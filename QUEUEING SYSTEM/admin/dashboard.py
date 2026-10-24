@@ -129,7 +129,7 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self.section_button.grid(row=0, column=0, sticky="w", padx=(0, 12))
 		title_block = ctk.CTkFrame(header, fg_color="transparent")
 		title_block.grid(row=0, column=1)
-		self.header_logo = load_logo_image(46)
+		self.header_logo = load_logo_image(46, corner_radius=10)
 		if self.header_logo is not None:
 			ctk.CTkLabel(
 				title_block,
@@ -210,7 +210,7 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		drawer_header = ctk.CTkFrame(self.section_drawer, fg_color="transparent")
 		drawer_header.pack(fill="x", padx=16, pady=(20, 16))
 		drawer_header.grid_columnconfigure(1, weight=1)
-		self.drawer_logo = load_logo_image(34)
+		self.drawer_logo = load_logo_image(34, corner_radius=8)
 		if self.drawer_logo is not None:
 			ctk.CTkLabel(
 				drawer_header,
@@ -1195,7 +1195,6 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		)
 		return holder
 
-	@staticmethod
 	def _layout_live_placeholder(self, holder, canvas, description, event) -> None:
 		mode = 1 if ctk.get_appearance_mode().lower() == "dark" else 0
 		canvas.configure(background=ADMIN_CANVAS[mode])

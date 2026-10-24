@@ -7,7 +7,9 @@ from pathlib import Path
 import tkinter as tk
 
 
-LOGO_PATH = Path(r"C:\Users\bombie\OneDrive\Documents\PROJECT\QUEUEING SYSTEM\QUEUEUP_LOGOFINAL.png").resolve().parent / "icons" / "logo.png"
+ICONS_DIR = Path(__file__).resolve().parent / "icons"
+LOGO_PATH = ICONS_DIR / "logo.ico"
+LOGO_IMAGE_PATH = ICONS_DIR / "logo.png"
 
 
 def responsive_grid_columns(
@@ -80,23 +82,43 @@ def set_window_icon(window) -> None:
 	except tk.TclError:
 		pass
 
-def load_logo_image(size: int):
-	if not LOGO_PATH.is_file():
+def _rounded_logo_image(image, size: int, radius: int):
+	from PIL import Image, ImageChops, ImageDraw
+
+	scale = 4
+	pixels = size * scale
+	image = image.convert("RGBA").resize((pixels, pixels), Image.LANCZOS)
+	if radius <= 0:
+		return image
+	mask = Image.new("L", (pixels, pixels), 0)
+	ImageDraw.Draw(mask).rounded_rectangle(
+		(0, 0, pixels - 1, pixels - 1),
+		radius=radius * scale,
+		fill=255,
+	)
+	image.putalpha(ImageChops.multiply(image.getchannel("A"), mask))
+	return image
+
+def load_logo_image(size: int, corner_radius: int = 0):
+	candidates = [path for path in (LOGO_IMAGE_PATH, LOGO_PATH) if path.is_file()]
+	if not candidates:
 		return None
 	try:
 		from PIL import Image
 		import customtkinter as ctk
 	except ImportError:
 		return None
-	try:
-		with Image.open(LOGO_PATH) as source:
-			sizes = getattr(source, "sizes", None)
-			if sizes:
-				source.size = max(sizes, key=lambda item: item[0] * item[1])
-			image = source.convert("RGBA")
-	except (OSError, ValueError):
-		return None
-	return ctk.CTkImage(light_image=image, dark_image=image, size=(size, size))
+	for path in candidates:
+		try:
+			with Image.open(path) as source:
+				sizes = getattr(source, "sizes", None)
+				if sizes:
+					source.size = max(sizes, key=lambda item: item[0] * item[1])
+				image = _rounded_logo_image(source, size, corner_radius)
+		except (OSError, ValueError):
+			continue
+		return ctk.CTkImage(light_image=image, dark_image=image, size=(size, size))
+	return None
 
 def center_window(window: tk.Misc) -> None:
 	window.update_idletasks()
