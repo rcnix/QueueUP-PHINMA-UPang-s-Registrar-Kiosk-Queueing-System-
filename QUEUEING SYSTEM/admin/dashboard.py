@@ -38,6 +38,7 @@ from admin.validation import set_field_error
 from assets import (
 format_counter_label,
 layout_responsive_grid,
+load_logo_image,
 set_window_icon,
 )
 from assets.password_toggle import CLOSED, OPEN, PasswordVisibilityButton
@@ -63,6 +64,7 @@ verify_admin_password,
 # calendar views.
 class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendarMixin, ctk.CTkFrame):
 	TABLE_WEIGHTS = (1.0, 0.65, 0.8, 1.8, 1.25, 1.25, 1.25)
+	LIVE_GRID_COLUMNS = 3
 	ADMIN_SECTIONS = (
 		"Live Queues",
 		"Transactions",
@@ -125,12 +127,33 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			text_color=INK,
 		)
 		self.section_button.grid(row=0, column=0, sticky="w", padx=(0, 12))
+		title_block = ctk.CTkFrame(header, fg_color="transparent")
+		title_block.grid(row=0, column=1)
+		self.header_logo = load_logo_image(46)
+		if self.header_logo is not None:
+			ctk.CTkLabel(
+				title_block,
+				text="",
+				image=self.header_logo,
+				width=46,
+				height=46,
+			).pack(side="left", padx=(0, 12))
+		title_text = ctk.CTkFrame(title_block, fg_color="transparent")
+		title_text.pack(side="left")
 		ctk.CTkLabel(
-			header,
+			title_text,
+			text="O P E R A T I O N S   C O N S O L E",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=9, weight="bold"),
+			text_color=MUTED_TEXT,
+			anchor="w",
+		).pack(anchor="w")
+		ctk.CTkLabel(
+			title_text,
 			text="QueueUP Admin",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=26, weight="bold"),
 			text_color=INK,
-		).grid(row=0, column=1)
+			anchor="w",
+		).pack(anchor="w", pady=(1, 0))
 		self.active_section_label = tk.StringVar(value="LIVE QUEUES")
 		ctk.CTkLabel(
 			header,
@@ -186,14 +209,23 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self.section_drawer.pack_propagate(False)
 		drawer_header = ctk.CTkFrame(self.section_drawer, fg_color="transparent")
 		drawer_header.pack(fill="x", padx=16, pady=(20, 16))
-		drawer_header.grid_columnconfigure(0, weight=1)
+		drawer_header.grid_columnconfigure(1, weight=1)
+		self.drawer_logo = load_logo_image(34)
+		if self.drawer_logo is not None:
+			ctk.CTkLabel(
+				drawer_header,
+				text="",
+				image=self.drawer_logo,
+				width=34,
+				height=34,
+			).grid(row=0, column=0, sticky="w", padx=(0, 10))
 		ctk.CTkLabel(
 			drawer_header,
 			text="ADMIN MENU",
 			font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
 			text_color=GREEN,
 			anchor="w",
-		).grid(row=0, column=0, sticky="w")
+		).grid(row=0, column=1, sticky="w")
 		ctk.CTkButton(
 			drawer_header,
 			text="\u00d7",
@@ -204,7 +236,7 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			hover_color=SOFT_GREEN,
 			text_color=INK,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=22),
-		).grid(row=0, column=1, sticky="e")
+		).grid(row=0, column=2, sticky="e")
 		section_list = ctk.CTkFrame(self.section_drawer, fg_color="transparent")
 		self._section_nav_buttons = {}
 		for section in self.ADMIN_SECTIONS:
@@ -627,6 +659,9 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 	def _set_admin_appearance_mode(self, dark_mode: bool) -> None:
 		ctk.set_appearance_mode("Dark" if dark_mode else "Light")
 		self._apply_native_widget_theme()
+		if hasattr(self, "live_panel_container"):
+			self._render_live_counter_panels()
+			self._refresh_live_queues()
 
 	def _apply_native_widget_theme(self) -> None:
 		mode = 1 if ctk.get_appearance_mode().lower() == "dark" else 0
@@ -834,13 +869,20 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self.live_grid.grid_columnconfigure(0, weight=1)
 		self.live_grid.grid_rowconfigure(0, weight=1)
 		self.live_queue_status = tk.StringVar(value="Live queue status")
+		status_row = ctk.CTkFrame(tab, fg_color="transparent")
+		status_row.grid(row=2, column=0, padx=8, pady=(4, 8))
 		ctk.CTkLabel(
-			tab,
+			status_row,
+			text="\u25CF",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=9),
+			text_color=GREEN,
+		).pack(side="left", padx=(0, 6))
+		ctk.CTkLabel(
+			status_row,
 			textvariable=self.live_queue_status,
 			font=ctk.CTkFont(family=FONT_FAMILY, size=11),
 			text_color=MUTED_TEXT,
-			anchor="center",
-		).grid(row=2, column=0, padx=8, pady=(4, 8), sticky="ew")
+		).pack(side="left")
 		self._live_grid_columns = 0
 		self._live_panels_rendering = False
 		self.live_panel_container = self.live_grid
@@ -876,9 +918,11 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		self.latest_labels = {}
 		self.serving_labels = {}
 		self.count_labels = {}
+		self.counter_state_labels = {}
 		self.queue_views = {}
 		self.empty_queue_labels = {}
 		self.queue_panels = {}
+		self._live_placeholder = None
 		try:
 			counters = get_counters()
 		except psycopg2.Error as error:
@@ -944,14 +988,27 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			)
 			panel.grid_columnconfigure(0, weight=1)
 			panel.grid_rowconfigure(6, weight=1)
+			title_row = ctk.CTkFrame(panel, fg_color="transparent")
+			title_row.grid(row=0, column=0, padx=14, pady=(12, 6), sticky="ew")
+			title_row.grid_columnconfigure(0, weight=1)
 			counter_title = ctk.CTkLabel(
-				panel,
+				title_row,
 				text=counter_name,
 				font=ctk.CTkFont(family=FONT_FAMILY, size=17, weight="bold"),
 				text_color=INK,
 				anchor="w",
 			)
-			counter_title.grid(row=0, column=0, padx=14, pady=(12, 6), sticky="ew")
+			counter_title.grid(row=0, column=0, sticky="w")
+			ctk.CTkLabel(
+				title_row,
+				text="ACTIVE",
+				fg_color=SOFT_GREEN,
+				corner_radius=5,
+				font=ctk.CTkFont(family=FONT_FAMILY, size=9, weight="bold"),
+				text_color=GREEN,
+				padx=9,
+				pady=3,
+			).grid(row=0, column=1, sticky="e")
 			ctk.CTkLabel(
 				panel,
 				text="LATEST TICKET",
@@ -995,8 +1052,11 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			)
 			serving.grid(row=1, column=0, padx=10, pady=(0, 7), sticky="ew")
 			self.serving_labels[counter_number] = serving
+			waiting_row = ctk.CTkFrame(panel, fg_color="transparent")
+			waiting_row.grid(row=4, column=0, padx=10, pady=(5, 3), sticky="ew")
+			waiting_row.grid_columnconfigure(1, weight=1)
 			count = ctk.CTkLabel(
-				panel,
+				waiting_row,
 				text="0 WAITING",
 				fg_color=SOFT_GREEN,
 				corner_radius=5,
@@ -1005,8 +1065,17 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 				padx=9,
 				pady=4,
 			)
-			count.grid(row=4, column=0, padx=10, pady=(5, 3), sticky="w")
+			count.grid(row=0, column=0, sticky="w")
 			self.count_labels[counter_number] = count
+			state_label = ctk.CTkLabel(
+				waiting_row,
+				text="Counter Ready",
+				font=ctk.CTkFont(family=FONT_FAMILY, size=10),
+				text_color=MUTED_TEXT,
+				anchor="e",
+			)
+			state_label.grid(row=0, column=1, sticky="e")
+			self.counter_state_labels[counter_number] = state_label
 			ctk.CTkLabel(
 				panel,
 				text="WAITING QUEUE",
@@ -1048,6 +1117,8 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 			empty_label.grid_remove()
 			self.empty_queue_labels[counter_number] = empty_label
 			self.queue_panels[counter_number] = panel
+		if len(counters) < self.LIVE_GRID_COLUMNS:
+			self._live_placeholder = self._build_live_placeholder()
 		self._live_panels_rendering = False
 		self._layout_live_counter_panels()
 
@@ -1057,14 +1128,118 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 		width = self.live_panel_container._parent_frame.winfo_width()
 		if width <= 1:
 			return
+		items = list(self.queue_panels.values())
+		if self._live_placeholder is not None:
+			items.append(self._live_placeholder)
 		self._live_grid_columns = layout_responsive_grid(
 			self.live_panel_container,
-			list(self.queue_panels.values()),
+			items,
 			width,
 			minimum_item_width=320,
 			padding=8,
+			max_columns=self.LIVE_GRID_COLUMNS,
 			expand_rows=True,
 		)
+
+	def _build_live_placeholder(self) -> ctk.CTkFrame:
+		mode = 1 if ctk.get_appearance_mode().lower() == "dark" else 0
+		holder = ctk.CTkFrame(
+			self.live_panel_container,
+			width=280,
+			height=280,
+			fg_color=ADMIN_CANVAS,
+			corner_radius=8,
+		)
+		holder.grid_propagate(False)
+		holder.grid_columnconfigure(0, weight=1)
+		holder.grid_rowconfigure(0, weight=1)
+		canvas = tk.Canvas(
+			holder,
+			background=ADMIN_CANVAS[mode],
+			highlightthickness=0,
+			borderwidth=0,
+		)
+		canvas.grid(row=0, column=0, sticky="nsew")
+		content = ctk.CTkFrame(holder, fg_color="transparent")
+		content.grid(row=0, column=0)
+		icon_box = ctk.CTkFrame(
+			content,
+			width=64,
+			height=64,
+			fg_color=SOFT_GREEN,
+			corner_radius=8,
+		)
+		icon_box.pack(pady=(0, 14))
+		icon_box.pack_propagate(False)
+		self._draw_layers_icon(icon_box)
+		ctk.CTkLabel(
+			content,
+			text="No additional counters",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
+			text_color=INK,
+		).pack()
+		description = ctk.CTkLabel(
+			content,
+			text="New service counters will appear here as soon as they are opened.",
+			font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+			text_color=MUTED_TEXT,
+			wraplength=180,
+			justify="center",
+		)
+		description.pack(pady=(6, 0))
+		canvas.bind(
+			"<Configure>",
+			lambda event: self._layout_live_placeholder(
+				holder, canvas, description, event
+			),
+		)
+		return holder
+
+	@staticmethod
+	def _layout_live_placeholder(self, holder, canvas, description, event) -> None:
+		mode = 1 if ctk.get_appearance_mode().lower() == "dark" else 0
+		canvas.configure(background=ADMIN_CANVAS[mode])
+		canvas.delete("outline")
+		canvas.create_rectangle(
+			1,
+			1,
+			max(event.width - 2, 2),
+			max(event.height - 2, 2),
+			outline=BORDER[mode],
+			dash=(6, 5),
+			width=1,
+			tags="outline",
+		)
+		scale = holder._apply_widget_scaling(1) or 1
+		description.configure(wraplength=max(120, int((event.width - 64) / scale)))
+
+	@staticmethod
+	def _draw_layers_icon(parent) -> None:
+		mode = 1 if ctk.get_appearance_mode().lower() == "dark" else 0
+		canvas = tk.Canvas(
+			parent,
+			width=34,
+			height=30,
+			background=SOFT_GREEN[mode],
+			highlightthickness=0,
+			borderwidth=0,
+		)
+		canvas.place(relx=0.5, rely=0.5, anchor="center")
+		stroke = MUTED_GREEN[mode]
+		canvas.create_line(
+			17, 2, 31, 10, 17, 18, 3, 10, 17, 2,
+			fill=stroke, width=2, joinstyle="round",
+		)
+		canvas.create_line(3, 15, 17, 23, 31, 15, fill=stroke, width=2, joinstyle="round")
+		canvas.create_line(3, 20, 17, 28, 31, 20, fill=stroke, width=2, joinstyle="round")
+
+	@staticmethod
+	def _counter_state_text(serving: str | None, waiting: list[str]) -> str:
+		if serving:
+			return "Now serving"
+		if waiting:
+			return f"{len(waiting)} in queue"
+		return "Counter Ready"
 
 	def _refresh_live_queues(self) -> None:
 		try:
@@ -1080,6 +1255,9 @@ class AdminDashboard(CounterCreationMixin, ConcernManagementMixin, AdminCalendar
 				self.serving_labels[counter_number].configure(text=serving or "--")
 				self.count_labels[counter_number].configure(
 					text=f"{len(waiting)} WAITING"
+				)
+				self.counter_state_labels[counter_number].configure(
+					text=self._counter_state_text(serving, waiting)
 				)
 				self._waiting_by_counter[counter_number] = list(waiting)
 				if waiting:

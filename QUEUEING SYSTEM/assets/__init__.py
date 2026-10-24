@@ -7,7 +7,7 @@ from pathlib import Path
 import tkinter as tk
 
 
-LOGO_PATH = Path(__file__).resolve().parent / "icons" / "logo.ico"
+LOGO_PATH = Path(r"C:\Users\bombie\OneDrive\Documents\PROJECT\QUEUEING SYSTEM\QUEUEUP_LOGOFINAL.png").resolve().parent / "icons" / "logo.png"
 
 
 def responsive_grid_columns(
@@ -80,6 +80,23 @@ def set_window_icon(window) -> None:
 	except tk.TclError:
 		pass
 
+def load_logo_image(size: int):
+	if not LOGO_PATH.is_file():
+		return None
+	try:
+		from PIL import Image
+		import customtkinter as ctk
+	except ImportError:
+		return None
+	try:
+		with Image.open(LOGO_PATH) as source:
+			sizes = getattr(source, "sizes", None)
+			if sizes:
+				source.size = max(sizes, key=lambda item: item[0] * item[1])
+			image = source.convert("RGBA")
+	except (OSError, ValueError):
+		return None
+	return ctk.CTkImage(light_image=image, dark_image=image, size=(size, size))
 
 def center_window(window: tk.Misc) -> None:
 	window.update_idletasks()
