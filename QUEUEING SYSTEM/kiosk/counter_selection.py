@@ -10,7 +10,7 @@ from database.queries import get_counters, get_faqs
 
 # class CounterSelectionMixin - Mixin that provides the counter selection
 # interface for kiosks, including counter browsing and FAQ display.
-class CounterSelectionMixin:class CounterSelectionMixin:
+class CounterSelectionMixin:
 	def _refresh_counters(self) -> None:
 		try:
 			counters = get_counters()

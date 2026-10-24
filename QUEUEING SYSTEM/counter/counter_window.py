@@ -19,7 +19,7 @@ BORDER,
 FONT_FAMILY,
 GREEN,
 GREEN_HOVER,
-INk,
+INK,
 MUTED_GREEN,
 PALE_GREEN,
 SOFT_GREEN,
@@ -32,7 +32,7 @@ from database.queries import get_counters, get_queue_snapshot, serve_next
 
 # class CounterControls - Counter interface frame showing queue status,
 # waiting tickets, and serving controls for each counter.
-class CounterControls(ctk.CTkFrame):class CounterControls(ctk.CTkFrame):
+class CounterControls(ctk.CTkFrame):
 	def __init__(self, parent):
 		super().__init__(parent, corner_radius=0, fg_color=PALE_GREEN)
 		self.grid_columnconfigure(0, weight=1)

@@ -12,7 +12,7 @@ from database.queries import get_concerns, get_faqs
 # class ConcernSelectionMixin - Mixin that provides the concern selection
 # interface for kiosks, including concern browsing, FAQ display, and
 # navigation between kiosk pages.
-class ConcernSelectionMixin:class ConcernSelectionMixin:
+class ConcernSelectionMixin:
 	def _next_to_concern(self) -> None:
 		self._update_concern_options()
 		counter_number = self.counter_numbers.get(self.counter_choice.get())

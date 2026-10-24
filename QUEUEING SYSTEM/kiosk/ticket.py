@@ -14,7 +14,7 @@ from printer.receipt_printer import print_receipt
 # class TicketWorkflowMixin - Mixin that provides the ticket issuing workflow
 # for kiosks, including ticket creation, receipt printing, and queue
 # management.
-class TicketWorkflowMixin:class TicketWorkflowMixin:
+class TicketWorkflowMixin:
 	def _issue_ticket(self) -> None:
 		concern_id = self.concern_ids.get(self.concern_choice.get())
 		recipient_name = self.recipient_name.get().strip()

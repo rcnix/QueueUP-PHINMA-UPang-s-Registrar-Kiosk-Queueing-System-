@@ -8,20 +8,21 @@ from pathlib import Path
 import customtkinter as ctk
 
 if __package__ in (None, ''):
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from admin.styles import (
+FONT_FAMILY,
 GREEN,
 GREEN_HOVER,
-INk,
+INK,
 MUTED_GREEN,
-MUTED_TEXT,
 PALE_GREEN,
 SOFT_BORDER,
 SOFT_GREEN,
 SOFT_GREEN_HOVER,
 SURFACE,
 SURFACE_ALT,
+FAQ_MUTED,
 )
 from assets import center_window, set_window_icon
 from kiosk.concern_selection import ConcernSelectionMixin
@@ -32,15 +33,10 @@ from kiosk.ticket import TicketWorkflowMixin
 # class KioskWindow - Main kiosk interface for recipients to select counters,
 # choose concerns, view FAQs, and issue tickets.
 class KioskWindow(
-CounterSelectionMixin,
-ConcernSelectionMixin,
-TicketWorkflowMixin,
-ctk.CTkFrame,
-):class KioskWindow(
-	CounterSelectionMixin,
-	ConcernSelectionMixin,
-	TicketWorkflowMixin,
-	ctk.CTkFrame,
+    CounterSelectionMixin,
+    ConcernSelectionMixin,
+    TicketWorkflowMixin,
+    ctk.CTkFrame,
 ):
 	def __init__(self, parent):
 		super().__init__(parent, corner_radius=0, fg_color=PALE_GREEN)
